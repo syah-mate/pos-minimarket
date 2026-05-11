@@ -27,15 +27,18 @@ export async function GET(req: NextRequest) {
   }
 
   const q = searchParams.get('q') ?? '';
-  const filter = q
-    ? {
-        $or: [
-          { refNo:        { $regex: q, $options: 'i' } },
-          { supplierNama: { $regex: q, $options: 'i' } },
-          { keterangan:   { $regex: q, $options: 'i' } },
-        ],
-      }
-    : {};
+  const barangId = searchParams.get('barangId') ?? '';
+  const filter: Record<string, unknown> = {};
+  if (q) {
+    filter.$or = [
+      { refNo:        { $regex: q, $options: 'i' } },
+      { supplierNama: { $regex: q, $options: 'i' } },
+      { keterangan:   { $regex: q, $options: 'i' } },
+    ];
+  }
+  if (barangId) {
+    filter['items.barangId'] = barangId;
+  }
   const data = await TransaksiBeli.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
   return NextResponse.json(data);
 }
