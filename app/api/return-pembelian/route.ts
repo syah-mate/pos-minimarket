@@ -27,9 +27,13 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q') ?? '';
   const belumKembali = searchParams.get('belumKembali') === '1';
   const barangId = searchParams.get('barangId') ?? '';
+  const refBeli = searchParams.get('refBeli') ?? '';
+  const supplierIdFilter = searchParams.get('supplierId') ?? '';
   const filter: Record<string, unknown> = {};
   if (belumKembali) filter.sudahKembali = false;
   if (barangId) filter.barangId = barangId;
+  if (refBeli) filter.refBeli = refBeli;
+  if (supplierIdFilter) filter.supplierId = supplierIdFilter;
   if (q) {
     filter.$or = [
       { refNo:      { $regex: q, $options: 'i' } },

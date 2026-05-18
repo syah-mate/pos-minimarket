@@ -26,16 +26,22 @@ export async function GET(req: NextRequest) {
   }
 
   const q = searchParams.get('q') ?? '';
-  const filter = q
-    ? {
-        $or: [
-          { refNo:           { $regex: q, $options: 'i' } },
-          { pelangganNama:   { $regex: q, $options: 'i' } },
-          { pelangganKode:   { $regex: q, $options: 'i' } },
-          { keterangan:      { $regex: q, $options: 'i' } },
-        ],
-      }
-    : {};
+  const pelangganId = searchParams.get('pelangganId') ?? '';
+  const piutangOnly = searchParams.get('piutangOnly') === '1';
+  const filter: Record<string, unknown> = {};
+  if (q) {
+    filter.$or = [
+      { refNo:           { $regex: q, $options: 'i' } },
+      { pelangganNama:   { $regex: q, $options: 'i' } },
+      { pelangganKode:   { $regex: q, $options: 'i' } },
+      { keterangan:      { $regex: q, $options: 'i' } },
+    ];
+  }
+  if (pelangganId) filter.pelangganId = pelangganId;
+  if (piutangOnly) {
+    filter.pembayaran = 'Kredit';
+    filter.piutang = { $gt: 0 };
+  }
   const data = await TransaksiJual.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
   return NextResponse.json(data);
 }

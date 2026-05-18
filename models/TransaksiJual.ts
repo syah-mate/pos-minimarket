@@ -35,6 +35,9 @@ export interface ITransaksiJual extends Document {
   ppn: number;
   grandTotal: number;
   piutang: number;
+  lunasPiutang: number;
+  piutangLunasTanggal: Date | null;
+  piutangLunasOperator: string;
   operator: string;
   cetakNota: boolean;
   createdAt: Date;
@@ -77,8 +80,11 @@ const TransaksiJualSchema = new Schema<ITransaksiJual>(
     disc:           { type: Number, default: 0 },
     ppn:            { type: Number, default: 0 },
     grandTotal:     { type: Number, default: 0 },
-    piutang:        { type: Number, default: 0 },
-    operator:       { type: String, default: '' },
+    piutang:           { type: Number, default: 0 },
+    lunasPiutang:      { type: Number, default: 0 },
+    piutangLunasTanggal:  { type: Date, default: null },
+    piutangLunasOperator: { type: String, default: '' },
+    operator:          { type: String, default: '' },
     cetakNota:      { type: Boolean, default: false },
   },
   { timestamps: true }

@@ -26,7 +26,9 @@ export async function GET(req: NextRequest) {
   }
 
   const q = searchParams.get('q') ?? '';
+  const pelangganId = searchParams.get('pelangganId') ?? '';
   const filter: Record<string, unknown> = {};
+  if (pelangganId) filter.pelangganId = pelangganId;
   if (q) {
     filter.$or = [
       { refNo:         { $regex: q, $options: 'i' } },

@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
 
   const q = searchParams.get('q') ?? '';
   const barangId = searchParams.get('barangId') ?? '';
+  const supplierId = searchParams.get('supplierId') ?? '';
+  const hutangOnly = searchParams.get('hutangOnly') === '1';
   const filter: Record<string, unknown> = {};
   if (q) {
     filter.$or = [
@@ -38,6 +40,13 @@ export async function GET(req: NextRequest) {
   }
   if (barangId) {
     filter['items.barangId'] = barangId;
+  }
+  if (supplierId) {
+    filter.supplierId = supplierId;
+  }
+  if (hutangOnly) {
+    filter.pembayaran = 'Tempo';
+    filter.hutang = { $gt: 0 };
   }
   const data = await TransaksiBeli.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
   return NextResponse.json(data);
