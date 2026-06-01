@@ -27,7 +27,9 @@ export interface ITransaksiJual extends Document {
   kasKode: string;
   kasNama: string;
   spg: string;
-  pembayaran: 'Cash' | 'Kredit';
+  pembayaran: 'Cash' | '1 Minggu' | '2 Minggu' | '3 Minggu' | '4 Minggu' | 'Custom';
+  tempoHari: number;
+  jatuhTempo: Date | null;
   keterangan: string;
   items: IItemJual[];
   subtotal: number;
@@ -73,7 +75,9 @@ const TransaksiJualSchema = new Schema<ITransaksiJual>(
     kasKode:        { type: String, default: '' },
     kasNama:        { type: String, default: '' },
     spg:            { type: String, default: '' },
-    pembayaran:     { type: String, enum: ['Cash', 'Kredit'], default: 'Cash' },
+    pembayaran:     { type: String, enum: ['Cash', 'Kredit', '1 Minggu', '2 Minggu', '3 Minggu', '4 Minggu', 'Custom'], default: 'Cash' },
+    tempoHari:      { type: Number, default: 0 },
+    jatuhTempo:     { type: Date, default: null },
     keterangan:     { type: String, default: '' },
     items:          { type: [ItemJualSchema], default: [] },
     subtotal:       { type: Number, default: 0 },

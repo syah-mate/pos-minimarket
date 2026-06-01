@@ -13,6 +13,9 @@ export interface IBarang extends Document {
   isi: number;
   hargaBeli: number;
   hargaJual: number;
+  hargaJualToko: number;
+  hargaJualPartai: number;
+  hargaJualCabang: number;
   stok: number;
   stokMinimum: number;
   stokMaksimum: number;
@@ -40,6 +43,9 @@ const BarangSchema = new Schema<IBarang>(
     isi: { type: Number, default: 1, min: 1 },
     hargaBeli: { type: Number, default: 0, min: 0 },
     hargaJual: { type: Number, default: 0, min: 0 },
+    hargaJualToko: { type: Number, default: 0, min: 0 },
+    hargaJualPartai: { type: Number, default: 0, min: 0 },
+    hargaJualCabang: { type: Number, default: 0, min: 0 },
     stok: { type: Number, default: 0 },
     stokMinimum: { type: Number, default: 0, min: 0 },
     stokMaksimum: { type: Number, default: 0, min: 0 },

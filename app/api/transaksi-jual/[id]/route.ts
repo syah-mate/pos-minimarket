@@ -33,11 +33,11 @@ export async function PUT(
     await Barang.findByIdAndUpdate(item.barangId, { $inc: { stok: item.qty } });
   }
   // Revert piutang lama
-  if (old.pembayaran === 'Kredit' && old.pelangganId && old.grandTotal > 0) {
+  if (old.pembayaran !== 'Cash' && old.pelangganId && old.grandTotal > 0) {
     await Pelanggan.findByIdAndUpdate(old.pelangganId, { $inc: { saldoPiutang: -old.grandTotal } });
   }
 
-  const piutang = pembayaran === 'Kredit' ? grandTotal : 0;
+  const piutang = pembayaran !== 'Cash' ? grandTotal : 0;
   const updated = await TransaksiJual.findByIdAndUpdate(
     id, { ...body, piutang }, { new: true, runValidators: true }
   );
@@ -48,7 +48,7 @@ export async function PUT(
     await Barang.findByIdAndUpdate(item.barangId, { $inc: { stok: -item.qty } });
   }
   // Apply piutang baru
-  if (pembayaran === 'Kredit' && pelangganId && grandTotal > 0) {
+  if (pembayaran !== 'Cash' && pelangganId && grandTotal > 0) {
     await Pelanggan.findByIdAndUpdate(pelangganId, { $inc: { saldoPiutang: grandTotal } });
   }
 
@@ -70,7 +70,7 @@ export async function DELETE(
     await Barang.findByIdAndUpdate(item.barangId, { $inc: { stok: item.qty } });
   }
   // Revert piutang
-  if (doc.pembayaran === 'Kredit' && doc.pelangganId && doc.grandTotal > 0) {
+  if (doc.pembayaran !== 'Cash' && doc.pelangganId && doc.grandTotal > 0) {
     await Pelanggan.findByIdAndUpdate(doc.pelangganId, { $inc: { saldoPiutang: -doc.grandTotal } });
   }
 

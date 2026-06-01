@@ -29,7 +29,8 @@ export interface ITransaksiBeli extends Document {
   kasKode: string;
   kasNama: string;
   keterangan: string;
-  pembayaran: 'Cash' | 'Tempo';
+  pembayaran: 'Cash' | '1 Minggu' | '2 Minggu' | '3 Minggu' | '4 Minggu' | 'Custom' | 'Tempo';
+  tempoHari: number;
   tempo: Date | null;
   items: IItemBeli[];
   subtotal: number;
@@ -80,7 +81,8 @@ const TransaksBeliSchema = new Schema<ITransaksiBeli>(
     kasKode:        { type: String, default: '' },
     kasNama:        { type: String, default: '' },
     keterangan:     { type: String, default: '' },
-    pembayaran:     { type: String, enum: ['Cash', 'Tempo'], default: 'Cash' },
+    pembayaran:     { type: String, default: 'Cash' },
+    tempoHari:      { type: Number, default: 0 },
     tempo:          { type: Date, default: null },
     items:          { type: [ItemBeliSchema], default: [] },
     subtotal:       { type: Number, default: 0 },

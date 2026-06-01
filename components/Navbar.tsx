@@ -2,14 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 type TabId = 'master' | 'transaksi' | 'back-office' | 'laporan';
 
-interface MenuItem {
+interface SubMenuItem {
   label: string;
   href: string;
+}
+
+interface MenuItem {
+  label: string;
+  href?: string;
+  colorKey?: string;
   icon: React.ReactNode;
+  subItems?: SubMenuItem[];
 }
 
 interface MenuGroup {
@@ -46,6 +53,14 @@ function IconPelanggan() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full">
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+    </svg>
+  );
+}
+
+function IconCabang() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
     </svg>
   );
 }
@@ -143,6 +158,7 @@ const TABS: NavTab[] = [
           { label: 'Barang',    href: '/dashboard/master/barang',    icon: <IconBarang /> },
           { label: 'Jasa',      href: '/dashboard/master/jasa',      icon: <IconJasa /> },
           { label: 'Pelanggan', href: '/dashboard/master/pelanggan', icon: <IconPelanggan /> },
+          { label: 'Cabang',    href: '/dashboard/master/cabang',    icon: <IconCabang /> },
           { label: 'Supplier',  href: '/dashboard/master/supplier',  icon: <IconSupplier /> },
           { label: 'Karyawan',  href: '/dashboard/master/karyawan',  icon: <IconKaryawan /> },
           { label: 'Kas',       href: '/dashboard/master/kas',       icon: <IconKas /> },
@@ -158,7 +174,16 @@ const TABS: NavTab[] = [
         label: 'Transaksi',
         items: [
           { label: 'Beli', href: '/dashboard/transaksi/beli', icon: <IconBeli /> },
-          { label: 'Jual', href: '/dashboard/transaksi/jual', icon: <IconJual /> },
+          {
+            label: 'Jual',
+            colorKey: '/dashboard/transaksi/jual',
+            icon: <IconJual />,
+            subItems: [
+              { label: 'Penjualan Toko',   href: '/dashboard/transaksi/jual/toko' },
+              { label: 'Penjualan Partai', href: '/dashboard/transaksi/jual/partai' },
+              { label: 'Penjualan Cabang', href: '/dashboard/transaksi/jual/cabang' },
+            ],
+          },
         ],
       },
       {
@@ -186,11 +211,15 @@ const ICON_COLORS: Record<string, string> = {
   '/dashboard/master/barang':    'text-blue-600',
   '/dashboard/master/jasa':      'text-green-600',
   '/dashboard/master/pelanggan': 'text-purple-600',
+  '/dashboard/master/cabang':    'text-indigo-600',
   '/dashboard/master/supplier':  'text-orange-500',
   '/dashboard/master/karyawan':  'text-teal-600',
   '/dashboard/master/kas':                     'text-yellow-600',
   '/dashboard/transaksi/beli':                  'text-blue-700',
   '/dashboard/transaksi/jual':                  'text-green-600',
+  '/dashboard/transaksi/jual/toko':              'text-green-600',
+  '/dashboard/transaksi/jual/partai':            'text-green-600',
+  '/dashboard/transaksi/jual/cabang':            'text-green-600',
   '/dashboard/transaksi/return-pembelian':      'text-orange-500',
   '/dashboard/transaksi/terima-return':         'text-purple-600',
   '/dashboard/transaksi/return-penjualan':      'text-red-500',
@@ -217,10 +246,23 @@ interface NavbarProps {
 export default function Navbar({ user }: NavbarProps) {
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState<TabId>(getTabFromPath(pathname));
+  const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setActiveTab(getTabFromPath(pathname));
+    setOpenSubmenu(null);
   }, [pathname]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (submenuRef.current && !submenuRef.current.contains(e.target as Node)) {
+        setOpenSubmenu(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const currentTab = TABS.find((t) => t.id === activeTab)!;
 
@@ -266,7 +308,7 @@ export default function Navbar({ user }: NavbarProps) {
       </div>
 
       {/* ── Ribbon ── */}
-      <div className="bg-white border-b border-blue-300 flex items-stretch min-h-19">
+      <div className="bg-white border-b border-blue-300 flex items-stretch min-h-19" ref={submenuRef}>
         {currentTab.groups.length > 0 ? (
           currentTab.groups.map((group, gi) => (
             <div key={gi} className="flex items-stretch">
@@ -279,12 +321,50 @@ export default function Navbar({ user }: NavbarProps) {
                 {/* Buttons */}
                 <div className="flex items-start gap-0.5 px-2 pt-1.5 flex-1">
                   {group.items.map((item) => {
-                    const isActiveItem = pathname === item.href;
-                    const colorClass = ICON_COLORS[item.href] ?? 'text-blue-600';
+                    const colorKey = item.href ?? item.colorKey ?? '';
+                    const isActiveItem = item.href
+                      ? pathname.startsWith(item.href)
+                      : item.subItems?.some(s => pathname.startsWith(s.href)) ?? false;
+                    const colorClass = ICON_COLORS[colorKey] ?? 'text-blue-600';
+                    const itemKey = item.href ?? item.label;
+
+                    if (item.subItems) {
+                      return (
+                        <div key={itemKey} className="relative">
+                          <button
+                            onClick={() => setOpenSubmenu(openSubmenu === item.label ? null : item.label)}
+                            className={`flex flex-col items-center gap-1 px-3 py-1 rounded-md transition-colors min-w-15 ${
+                              isActiveItem
+                                ? 'bg-blue-100 ring-1 ring-blue-300'
+                                : 'hover:bg-gray-100'
+                            }`}
+                          >
+                            <span className={`w-8 h-8 ${colorClass}`}>{item.icon}</span>
+                            <span className="text-[11px] text-gray-700 font-medium leading-none flex items-center gap-0.5">
+                              {item.label} <span className="text-[8px] mt-px">▼</span>
+                            </span>
+                          </button>
+                          {openSubmenu === item.label && (
+                            <div className="absolute top-full left-0 z-50 bg-white border border-gray-300 shadow-lg rounded min-w-40 py-0.5">
+                              {item.subItems.map(sub => (
+                                <Link
+                                  key={sub.href}
+                                  href={sub.href}
+                                  className="block px-4 py-1.5 text-xs hover:bg-green-100 whitespace-nowrap"
+                                >
+                                  {sub.label}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
                     return (
                       <Link
-                        key={item.href}
-                        href={item.href}
+                        key={itemKey}
+                        href={item.href!}
                         className={`flex flex-col items-center gap-1 px-3 py-1 rounded-md transition-colors min-w-15 ${
                           isActiveItem
                             ? 'bg-blue-100 ring-1 ring-blue-300'

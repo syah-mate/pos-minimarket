@@ -13,6 +13,9 @@ interface BarangOption {
   isi: number;
   hargaBeli: number;
   hargaJual: number;
+  hargaJualToko: number;
+  hargaJualPartai: number;
+  hargaJualCabang: number;
   stok: number;
   hasExpired: boolean;
 }
@@ -53,6 +56,8 @@ interface ItemRow {
   expired: string;
   hasExpired: boolean;
 }
+
+type PembayaranBeliType = 'Cash' | '1 Minggu' | '2 Minggu' | '3 Minggu' | '4 Minggu' | 'Custom';
 
 interface TransaksiDoc {
   _id: string;
@@ -442,8 +447,8 @@ export default function BeliPage() {
   const [kasNama, setKasNama] = useState('');
   const [kasSaldo, setKasSaldo] = useState(0);
   const [keterangan, setKeterangan] = useState('');
-  const [pembayaran, setPembayaran] = useState<'Cash' | 'Tempo'>('Cash');
-  const [tempo, setTempo] = useState('');
+  const [pembayaran, setPembayaran] = useState<PembayaranBeliType>('Cash');
+  const [tempoHari, setTempoHari] = useState(0);
   const [disc, setDisc] = useState(0);
   const [ppn, setPpn] = useState(0);
   const [cetakBarcode, setCetakBarcode] = useState(false);
@@ -487,7 +492,7 @@ export default function BeliPage() {
     setTanggal(today);
     setSupplierId(''); setSupplierNama(''); setSupplierAlamat('');
     setKasId(''); setKasKode(''); setKasNama(''); setKasSaldo(0);
-    setKeterangan(''); setPembayaran('Cash'); setTempo('');
+    setKeterangan(''); setPembayaran('Cash'); setTempoHari(0);
     setDisc(0); setPpn(0); setCetakBarcode(false);
     setUpdateHargaJual(false); setCetakNota(false);
     setItems([emptyRow()]); setActiveRow(0);
@@ -511,8 +516,9 @@ export default function BeliPage() {
     setKasNama(doc.kasNama || '');
     setKasSaldo(0);
     setKeterangan(doc.keterangan || '');
-    setPembayaran(doc.pembayaran || 'Cash');
-    setTempo(doc.tempo ? toDateInput(doc.tempo) : '');
+    const rawPembayaran = doc.pembayaran || 'Cash';
+    setPembayaran(rawPembayaran === 'Tempo' ? 'Custom' : rawPembayaran as PembayaranBeliType);
+    setTempoHari(doc.tempoHari || 0);
     setDisc(doc.disc || 0);
     setPpn(doc.ppn || 0);
     setCetakBarcode(doc.cetakBarcode || false);
@@ -552,13 +558,15 @@ export default function BeliPage() {
   }
 
   function applyBarangToRow(idx: number, b: BarangOption, satuanType: 'jual' | 'beli') {
-    // hargaBeli di master = harga per satuan terkecil (satuanJual)
-    // Jika beli per satuanBeli (mis. BOX), harga per box = hargaBeli × isi
     const hrgBeli = satuanType === 'beli' ? b.hargaBeli * b.isi : b.hargaBeli;
     const satuan = satuanType === 'beli' ? b.satuanBeli : b.satuanJual;
-    const hrgBeliPcs = b.hargaBeli; // selalu harga per satuan terkecil
-    const hgaToko = b.hargaJual;
+    const hrgBeliPcs = b.hargaBeli;
+    const hgaToko = b.hargaJualToko || b.hargaJual;
+    const hrgPartai = b.hargaJualPartai || b.hargaJual;
+    const hrgCabang = b.hargaJualCabang || b.hargaJual;
     const pctToko = pctFrom(hgaToko, hrgBeliPcs);
+    const pctPartai = pctFrom(hrgPartai, hrgBeliPcs);
+    const pctCabang = pctFrom(hrgCabang, hrgBeliPcs);
     setItems(prev =>
       prev.map((r, i) =>
         i === idx
@@ -567,8 +575,8 @@ export default function BeliPage() {
               barangId: b._id, namaBarang: b.nama, satuan,
               satuanType, isi: b.isi, qty: r.qty || 1,
               hrgBeli, hgaToko, pctToko,
-              hrgPartai: hgaToko, pctPartai: pctToko,
-              hrgCabang: hgaToko, pctCabang: pctToko,
+              hrgPartai, pctPartai,
+              hrgCabang, pctCabang,
               disc: 0, hasExpired: b.hasExpired,
               rupiah: Math.max(0, (r.qty || 1) * hrgBeli),
             }
@@ -626,10 +634,20 @@ export default function BeliPage() {
     }
     setSaving(true);
     try {
+      const resolvedTempoHari = pembayaran === '1 Minggu' ? 7
+        : pembayaran === '2 Minggu' ? 14
+        : pembayaran === '3 Minggu' ? 21
+        : pembayaran === '4 Minggu' ? 28
+        : pembayaran === 'Custom' ? tempoHari
+        : 0;
+      const jatuhTempo = pembayaran !== 'Cash' && resolvedTempoHari > 0
+        ? (() => { const d = new Date(tanggal); d.setDate(d.getDate() + resolvedTempoHari); return d.toISOString(); })()
+        : null;
       const body = {
         refNo, tanggal, supplierId, supplierNama, supplierAlamat,
         kasId, kasKode, kasNama, keterangan, pembayaran,
-        tempo: tempo || null,
+        tempoHari: resolvedTempoHari,
+        tempo: jatuhTempo,
         disc, ppn, subtotal, grandTotal,
         items: validItems.map(({ _key, hasExpired, ...r }) => ({
           ...r,
@@ -852,20 +870,25 @@ export default function BeliPage() {
                 <span className="text-xs">:</span>
                 <select
                   value={pembayaran}
-                  onChange={e => setPembayaran(e.target.value as 'Cash' | 'Tempo')}
+                  onChange={e => setPembayaran(e.target.value as PembayaranBeliType)}
                   className="border bg-white px-1 py-0.5 text-xs"
                 >
                   <option value="Cash">Cash</option>
-                  <option value="Tempo">Tempo</option>
+                  <option value="1 Minggu">1 Minggu</option>
+                  <option value="2 Minggu">2 Minggu</option>
+                  <option value="3 Minggu">3 Minggu</option>
+                  <option value="4 Minggu">4 Minggu</option>
+                  <option value="Custom">Custom</option>
                 </select>
-                {pembayaran === 'Tempo' && (
+                {pembayaran === 'Custom' && (
                   <>
-                    <span className="text-xs ml-2 shrink-0">Jatuh Tempo:</span>
+                    <span className="text-xs ml-2 shrink-0">Hari:</span>
                     <input
-                      type="date"
-                      value={tempo}
-                      onChange={e => setTempo(e.target.value)}
-                      className="border bg-white px-1 py-0.5 text-xs"
+                      type="number"
+                      min={0}
+                      value={tempoHari}
+                      onChange={e => setTempoHari(+e.target.value)}
+                      className="border bg-white px-1 py-0.5 text-xs w-16"
                     />
                   </>
                 )}

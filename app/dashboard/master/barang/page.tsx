@@ -18,6 +18,9 @@ interface IBarang {
   isi: number;
   hargaBeli: number;
   hargaJual: number;
+  hargaJualToko: number;
+  hargaJualPartai: number;
+  hargaJualCabang: number;
   stok: number;
   stokMinimum: number;
   stokMaksimum: number;
@@ -41,7 +44,9 @@ interface BarangInput {
   satuanJual: string;
   isi: number;
   hargaBeli: number;
-  hargaJual: number;
+  hargaJualToko: number;
+  hargaJualPartai: number;
+  hargaJualCabang: number;
   stok: number;
   stokMinimum: number;
   stokMaksimum: number;
@@ -68,7 +73,7 @@ const SATUAN_LIST = [
 const EMPTY_FORM: BarangInput = {
   kode: '', barcode: '', nama: '', kategori: '', subKategori: '',
   hasExpired: false, expired: '', satuanBeli: 'PCS', satuanJual: 'PCS',
-  isi: 1, hargaBeli: 0, hargaJual: 0, stok: 0,
+  isi: 1, hargaBeli: 0, hargaJualToko: 0, hargaJualPartai: 0, hargaJualCabang: 0, stok: 0,
   stokMinimum: 0, stokMaksimum: 0, lokasi: '', diskon: 0,
   pointMember: 0, pointKaryawan: 0, tglBeli: '', supplier: '',
 };
@@ -78,8 +83,10 @@ const TABLE_COLS = [
   { key: 'kode',        label: 'KODE',         cls: 'min-w-36' },
   { key: 'kategori',    label: 'KATEGORI',     cls: 'min-w-28' },
   { key: 'subKategori', label: 'SUB KATEGORI', cls: 'min-w-28' },
-  { key: 'hargaBeli',   label: 'HRG BELI',     cls: 'min-w-24 text-right' },
-  { key: 'hargaJual',   label: 'HRG JUAL',     cls: 'min-w-24 text-right' },
+  { key: 'hargaBeli',      label: 'HRG BELI',         cls: 'min-w-24 text-right' },
+  { key: 'hargaJualToko',   label: 'HRG JUAL TOKO',    cls: 'min-w-28 text-right' },
+  { key: 'hargaJualPartai', label: 'HRG JUAL PARTAI',  cls: 'min-w-28 text-right' },
+  { key: 'hargaJualCabang', label: 'HRG JUAL CABANG',  cls: 'min-w-28 text-right' },
   { key: 'stok',        label: 'STOK',         cls: 'min-w-28' },
   { key: 'satuanBeli',  label: 'SAT BELI',     cls: 'min-w-20' },
   { key: 'isi',         label: 'ISI',          cls: 'min-w-12 text-right' },
@@ -122,7 +129,9 @@ function barangToForm(b: IBarang): BarangInput {
     kategori: b.kategori, subKategori: b.subKategori,
     hasExpired: b.hasExpired, expired: toDateInput(b.expired),
     satuanBeli: b.satuanBeli, satuanJual: b.satuanJual, isi: b.isi,
-    hargaBeli: b.hargaBeli, hargaJual: b.hargaJual, stok: b.stok,
+    hargaBeli: b.hargaBeli ?? 0,
+    hargaJualToko: b.hargaJualToko ?? b.hargaJual ?? 0, hargaJualPartai: b.hargaJualPartai ?? 0, hargaJualCabang: b.hargaJualCabang ?? 0,
+    stok: b.stok ?? 0,
     stokMinimum: b.stokMinimum, stokMaksimum: b.stokMaksimum,
     lokasi: b.lokasi, diskon: b.diskon, pointMember: b.pointMember,
     pointKaryawan: b.pointKaryawan, tglBeli: toDateInput(b.tglBeli),
@@ -253,8 +262,16 @@ function BarangModal({ mode, initialData, onClose, onSave, saving }: ModalProps)
                         <input type="number" min="0" className={inp} value={form.hargaBeli} onChange={(e) => set('hargaBeli', +e.target.value)} />
                       </div>
                       <div>
-                        <label className={lbl}>Harga Jual</label>
-                        <input type="number" min="0" className={inp} value={form.hargaJual} onChange={(e) => set('hargaJual', +e.target.value)} />
+                        <label className={lbl}>Harga Jual Toko</label>
+                        <input type="number" min="0" className={inp} value={form.hargaJualToko} onChange={(e) => set('hargaJualToko', +e.target.value)} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Harga Jual Partai</label>
+                        <input type="number" min="0" className={inp} value={form.hargaJualPartai} onChange={(e) => set('hargaJualPartai', +e.target.value)} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Harga Jual Cabang</label>
+                        <input type="number" min="0" className={inp} value={form.hargaJualCabang} onChange={(e) => set('hargaJualCabang', +e.target.value)} />
                       </div>
                       <div>
                         <label className={lbl}>Stok</label>
@@ -509,7 +526,9 @@ export default function BarangPage() {
                     <td className="px-2 py-1 border-r border-gray-100">{b.kategori}</td>
                     <td className="px-2 py-1 border-r border-gray-100 text-gray-500">{b.subKategori}</td>
                     <td className="px-2 py-1 border-r border-gray-100 text-right tabular-nums">{fmt(b.hargaBeli)}</td>
-                    <td className="px-2 py-1 border-r border-gray-100 text-right tabular-nums">{fmt(b.hargaJual)}</td>
+                    <td className="px-2 py-1 border-r border-gray-100 text-right tabular-nums">{fmt(b.hargaJualToko ?? b.hargaJual)}</td>
+                    <td className="px-2 py-1 border-r border-gray-100 text-right tabular-nums">{fmt(b.hargaJualPartai)}</td>
+                    <td className="px-2 py-1 border-r border-gray-100 text-right tabular-nums">{fmt(b.hargaJualCabang)}</td>
                     <td className="px-2 py-1 border-r border-gray-100 font-medium whitespace-nowrap">
                       {status === 'kurang' && (
                         <span className="text-red-600">↓ {b.stok > 0 ? `${b.stok} ${b.satuanBeli}` : b.satuanBeli}</span>

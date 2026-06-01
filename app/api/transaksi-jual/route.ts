@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get('q') ?? '';
   const pelangganId = searchParams.get('pelangganId') ?? '';
   const piutangOnly = searchParams.get('piutangOnly') === '1';
+  const jenis = searchParams.get('jenis') ?? '';
   const filter: Record<string, unknown> = {};
   if (q) {
     filter.$or = [
@@ -38,8 +39,9 @@ export async function GET(req: NextRequest) {
     ];
   }
   if (pelangganId) filter.pelangganId = pelangganId;
+  if (jenis) filter.jenis = jenis;
   if (piutangOnly) {
-    filter.pembayaran = 'Kredit';
+    filter.pembayaran = { $ne: 'Cash' };
     filter.piutang = { $gt: 0 };
   }
   const data = await TransaksiJual.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
@@ -60,7 +62,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `No. Faktur ${refNo} sudah ada.` }, { status: 400 });
     }
 
-    const piutang = pembayaran === 'Kredit' ? grandTotal : 0;
+    const isKredit = pembayaran !== 'Cash';
+    const piutang = isKredit ? grandTotal : 0;
 
     const transaksi = await TransaksiJual.create({
       ...rest, refNo, tanggal: tanggalDate, pembayaran,
@@ -75,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Update saldo piutang pelanggan jika Kredit
-    if (pembayaran === 'Kredit' && pelangganId && grandTotal > 0) {
+    if (isKredit && pelangganId && grandTotal > 0) {
       await Pelanggan.findByIdAndUpdate(pelangganId, { $inc: { saldoPiutang: grandTotal } });
     }
 

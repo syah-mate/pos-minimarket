@@ -40,7 +40,7 @@ export async function PUT(
   }
 
   const lunas = pembayaran === 'Cash' ? grandTotal : 0;
-  const hutang = pembayaran === 'Tempo' ? grandTotal : 0;
+  const hutang = pembayaran !== 'Cash' ? grandTotal : 0;
 
   const updated = await TransaksiBeli.findByIdAndUpdate(
     id,
@@ -53,9 +53,11 @@ export async function PUT(
     if (!item.barangId) continue;
     const stokTambah = item.satuanType === 'beli' ? item.qty * (item.isi || 1) : item.qty;
     const updateOps: Record<string, unknown> = { $inc: { stok: stokTambah } };
-    if (updateHargaJual && item.hgaToko > 0) {
-      updateOps.$set = { hargaJual: item.hgaToko };
-    }
+    const hargaSet: Record<string, number> = {};
+    if (item.hgaToko > 0)   hargaSet.hargaJualToko   = item.hgaToko;
+    if (item.hrgPartai > 0) hargaSet.hargaJualPartai = item.hrgPartai;
+    if (item.hrgCabang > 0) hargaSet.hargaJualCabang = item.hrgCabang;
+    if (Object.keys(hargaSet).length > 0) updateOps.$set = hargaSet;
     await Barang.findByIdAndUpdate(item.barangId, updateOps);
   }
 

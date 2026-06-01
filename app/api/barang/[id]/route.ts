@@ -23,7 +23,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
     await connectDB();
     const { id } = await params;
     const body = await request.json();
-    const updated = await Barang.findByIdAndUpdate(id, body, {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { _id, __v, createdAt, updatedAt, ...fields } = body;
+    const updated = await Barang.findByIdAndUpdate(id, { $set: fields }, {
       new: true,
       runValidators: true,
     });
