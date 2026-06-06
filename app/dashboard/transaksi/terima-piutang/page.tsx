@@ -260,6 +260,154 @@ function PiutangPicker({ pelangganId, q: initialQ = '', onSelect, onClose }: {
   );
 }
 
+// ─── Piutang Bulk Picker ──────────────────────────────────────────────────────
+
+function PiutangBulkPicker({ pelangganId, existingIds, onConfirm, onClose }: {
+  pelangganId: string;
+  existingIds: string[];
+  onConfirm: (selected: PiutangOption[]) => void;
+  onClose: () => void;
+}) {
+  const [list, setList] = useState<PiutangOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!pelangganId) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const [jualRes, returnRes] = await Promise.all([
+          fetch(`/api/transaksi-jual?pelangganId=${pelangganId}&piutangOnly=1`),
+          fetch(`/api/return-penjualan?pelangganId=${pelangganId}`),
+        ]);
+        const jualData = await jualRes.json();
+        const returnData = await returnRes.json();
+
+        const returnByFaktur: Record<string, number> = {};
+        for (const r of returnData) {
+          for (const item of (r.items || [])) {
+            if (item.fakturId) {
+              returnByFaktur[item.fakturId] = (returnByFaktur[item.fakturId] || 0) + (item.subtotal || 0);
+            }
+          }
+        }
+
+        const result: PiutangOption[] = jualData
+          .filter((j: { _id: string }) => !existingIds.includes(j._id))
+          .map((j: {
+            _id: string; refNo: string; tanggal: string;
+            grandTotal: number; piutang: number; lunasPiutang: number;
+          }) => ({
+            _id: j._id,
+            refNo: j.refNo,
+            tanggal: j.tanggal,
+            grandTotal: j.grandTotal,
+            piutang: j.piutang,
+            lunasPiutang: j.lunasPiutang || 0,
+            returnAmount: returnByFaktur[j._id] || 0,
+          }));
+        setList(result);
+        // Auto-check all
+        setChecked(new Set(result.map(p => p._id)));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [pelangganId]);
+
+  const allChecked = list.length > 0 && list.every(p => checked.has(p._id));
+  const someChecked = list.some(p => checked.has(p._id));
+
+  function toggleAll() {
+    if (allChecked) {
+      setChecked(new Set());
+    } else {
+      setChecked(new Set(list.map(p => p._id)));
+    }
+  }
+
+  function toggleOne(id: string) {
+    setChecked(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function handleConfirm() {
+    const selected = list.filter(p => checked.has(p._id));
+    onConfirm(selected);
+  }
+
+  const selectedCount = checked.size;
+  const selectedTotal = list.filter(p => checked.has(p._id)).reduce((s, p) => s + p.piutang, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded shadow-xl flex flex-col" style={{ width: '60vw', maxHeight: '70vh' }}>
+        <div className="bg-red-700 text-white px-4 py-2 font-bold text-sm flex justify-between shrink-0">
+          <span>PILIH PIUTANG DARI DAFTAR</span>
+          <button onClick={onClose} className="hover:text-red-300">✕</button>
+        </div>
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-xs border-collapse">
+            <thead className="sticky top-0 bg-red-600 text-white">
+              <tr>
+                <th className="px-2 py-1 border border-red-500 w-10 text-center">
+                  <input type="checkbox" checked={allChecked} onChange={toggleAll}
+                    className="w-3.5 h-3.5 accent-white cursor-pointer" />
+                </th>
+                <th className="px-2 py-1 text-left border border-red-500">NO. PIUTANG</th>
+                <th className="px-2 py-1 text-left border border-red-500 w-28">TGL. PIUTANG</th>
+                <th className="px-2 py-1 text-right border border-red-500 w-36">JUMLAH NOMINAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={4} className="text-center py-4 text-gray-400 text-xs">Memuat...</td></tr>}
+              {!loading && list.map((p, i) => (
+                <tr key={p._id}
+                  className={`border-b border-gray-100 hover:bg-red-50 ${i % 2 === 0 ? 'bg-white' : 'bg-red-50/30'}`}>
+                  <td className="px-2 py-0.5 border-r border-gray-200 text-center">
+                    <input type="checkbox" checked={checked.has(p._id)} onChange={() => toggleOne(p._id)}
+                      className="w-3.5 h-3.5 accent-red-600 cursor-pointer" />
+                  </td>
+                  <td className="px-2 py-0.5 border-r border-gray-200 font-medium text-blue-700 whitespace-nowrap">{p.refNo}</td>
+                  <td className="px-2 py-0.5 border-r border-gray-200 whitespace-nowrap">
+                    {p.tanggal ? new Date(p.tanggal).toLocaleDateString('id-ID') : ''}
+                  </td>
+                  <td className="px-2 py-0.5 border-r border-gray-200 text-right">{fmt(p.piutang)}</td>
+                </tr>
+              ))}
+              {!loading && list.length === 0 && (
+                <tr><td colSpan={4} className="text-center py-6 text-gray-400 italic text-xs">
+                  Tidak ada piutang outstanding
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {/* Footer */}
+        <div className="bg-gray-100 border-t px-4 py-2 flex items-center shrink-0">
+          <div className="text-xs text-gray-600">
+            <span className="font-semibold">{selectedCount}</span> piutang terpilih — Total: <span className="font-bold text-red-700">{fmt(selectedTotal)}</span>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <button onClick={onClose}
+              className="px-4 py-1 bg-gray-400 hover:bg-gray-500 text-white text-xs font-bold rounded">
+              BATAL
+            </button>
+            <button onClick={handleConfirm} disabled={selectedCount === 0}
+              className="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded disabled:opacity-40">
+              PILIH ({selectedCount})
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function TerimaPiutangPage() {
@@ -300,6 +448,7 @@ export default function TerimaPiutangPage() {
   const [showPiutangPicker, setShowPiutangPicker] = useState(false);
   const [piutangPickerQ, setPiutangPickerQ] = useState('');
   const [targetRow, setTargetRow] = useState(0);
+  const [showPiutangBulkPicker, setShowPiutangBulkPicker] = useState(false);
 
   // ── Totals ─────────────────────────────────────────────────────────────────
 
@@ -413,40 +562,27 @@ export default function TerimaPiutangPage() {
 
   // ── Load all piutang for pelanggan ─────────────────────────────────────────
 
-  async function handleLoadAllPiutang() {
+  function handleLoadAllPiutang() {
     if (!pelangganId) { setError('Pilih pelanggan dulu.'); return; }
     setError('');
-    const [jualRes, returnRes] = await Promise.all([
-      fetch(`/api/transaksi-jual?pelangganId=${pelangganId}&piutangOnly=1`),
-      fetch(`/api/return-penjualan?pelangganId=${pelangganId}`),
-    ]);
-    const jualData = await jualRes.json();
-    const returnData = await returnRes.json();
+    setShowPiutangBulkPicker(true);
+  }
 
-    const returnByFaktur: Record<string, number> = {};
-    for (const r of returnData) {
-      for (const item of (r.items || [])) {
-        if (item.fakturId) {
-          returnByFaktur[item.fakturId] = (returnByFaktur[item.fakturId] || 0) + (item.subtotal || 0);
-        }
-      }
-    }
+  function handleConfirmBulkPiutang(selected: PiutangOption[]) {
+    const newRows: ItemRow[] = selected.map(p => ({
+      _key: Math.random().toString(36).slice(2),
+      transaksiJualId: p._id,
+      noPiutangInput: p.refNo,
+      noPiutang: p.refNo,
+      tglPiutang: toDateInput(p.tanggal),
+      jmlPiutang: p.piutang,
+      returnAmount: p.returnAmount,
+      angsuran: p.piutang,
+    }));
 
-    const newRows: ItemRow[] = jualData
-      .filter((j: { _id: string }) => !items.some(r => r.transaksiJualId === j._id))
-      .map((j: { _id: string; refNo: string; tanggal: string; piutang: number }) => ({
-        _key: Math.random().toString(36).slice(2),
-        transaksiJualId: j._id,
-        noPiutangInput: j.refNo,
-        noPiutang: j.refNo,
-        tglPiutang: toDateInput(j.tanggal),
-        jmlPiutang: j.piutang,
-        returnAmount: returnByFaktur[j._id] || 0,
-        angsuran: j.piutang,
-      }));
-
-    if (newRows.length === 0) { setError('Tidak ada piutang outstanding untuk pelanggan ini.'); return; }
+    if (newRows.length === 0) { setShowPiutangBulkPicker(false); return; }
     setItems(prev => ensureEmptyLast([...prev.filter(r => r.transaksiJualId), ...newRows]));
+    setShowPiutangBulkPicker(false);
   }
 
   // ── Item update ────────────────────────────────────────────────────────────
@@ -640,7 +776,7 @@ export default function TerimaPiutangPage() {
                   <button
                     onClick={handleLoadAllPiutang}
                     className="border bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 text-xs rounded shrink-0 whitespace-nowrap">
-                    Pilih Dan Daftar Piutang
+                    Pilih Dari Daftar Piutang
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
@@ -788,6 +924,12 @@ export default function TerimaPiutangPage() {
       {showPiutangPicker && (
         <PiutangPicker pelangganId={pelangganId} q={piutangPickerQ}
           onSelect={handleSelectPiutang} onClose={() => setShowPiutangPicker(false)} />
+      )}
+      {showPiutangBulkPicker && (
+        <PiutangBulkPicker pelangganId={pelangganId}
+          existingIds={items.filter(r => r.transaksiJualId).map(r => r.transaksiJualId)}
+          onConfirm={handleConfirmBulkPiutang}
+          onClose={() => setShowPiutangBulkPicker(false)} />
       )}
     </>
   );

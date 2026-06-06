@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
+import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -284,10 +285,12 @@ function KaryawanPicker({ onSelect, onClose }: {
 
 // ─── Barang Picker ─────────────────────────────────────────────────────────────
 
-function BarangPicker({ jenis, onSelect, onClose }: {
+function BarangPicker({ jenis, onSelect, onClose, onAddBarang, refreshKey }: {
   jenis: JenisJual;
   onSelect: (b: BarangOption) => void;
   onClose: () => void;
+  onAddBarang: () => void;
+  refreshKey: number;
 }) {
   const [q, setQ] = useState('');
   const [list, setList] = useState<BarangOption[]>([]);
@@ -298,6 +301,11 @@ function BarangPicker({ jenis, onSelect, onClose }: {
   const selectedRowRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); fetchList(''); }, []);
+
+  // Refetch when refreshKey changes
+  useEffect(() => {
+    if (refreshKey > 0) fetchList(q);
+  }, [refreshKey]);
 
   // Reset selection when list changes
   useEffect(() => {
@@ -348,12 +356,18 @@ function BarangPicker({ jenis, onSelect, onClose }: {
           <span>PILIH BARANG</span>
           <button onClick={onClose} className="hover:text-red-300">✕</button>
         </div>
-        <div className="p-3 border-b">
+        <div className="p-3 border-b flex gap-2">
           <input ref={inputRef} value={q}
             onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
             onKeyDown={handleInputKeyDown}
             placeholder="Scan barcode, atau ketik kode / nama barang..."
-            className="border rounded px-2 py-1 text-sm w-full" />
+            className="border rounded px-2 py-1 text-sm flex-1" />
+          <button
+            onClick={onAddBarang}
+            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded whitespace-nowrap"
+          >
+            + Tambah Barang Baru
+          </button>
         </div>
         <div ref={listContainerRef} className="overflow-auto flex-1">
           <table className="w-full text-xs border-collapse">
@@ -609,6 +623,11 @@ function JualBaseContent({ jenis }: JualBaseProps) {
   const [showCabangPicker, setShowCabangPicker] = useState(false);
   const [targetRow, setTargetRow] = useState(0);
 
+  // Add barang modal
+  const [showAddBarangModal, setShowAddBarangModal] = useState(false);
+  const [savingBarang, setSavingBarang] = useState(false);
+  const [barangRefreshKey, setBarangRefreshKey] = useState(0);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [scanInput, setScanInput] = useState(''); // barcode / kode typing
@@ -756,6 +775,28 @@ function JualBaseContent({ jenis }: JualBaseProps) {
     setActiveCol(1);
     setNumberBuffer(null);
     setShowBarangPicker(false);
+  }
+
+  // ── Add barang handler ──────────────────────────────────────────────────
+
+  async function handleSaveBarang(data: BarangInput) {
+    setSavingBarang(true);
+    try {
+      const res = await fetch('/api/barang', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Gagal menambah barang');
+        return;
+      }
+      setShowAddBarangModal(false);
+      setBarangRefreshKey(prev => prev + 1);
+    } finally {
+      setSavingBarang(false);
+    }
   }
 
   // ── Save ───────────────────────────────────────────────────────────────────
@@ -1351,8 +1392,16 @@ function JualBaseContent({ jenis }: JualBaseProps) {
       {showPelangganPicker && <PelangganPicker onSelect={handleSelectPelanggan} onClose={() => setShowPelangganPicker(false)} />}
       {showKasPicker && <KasPicker onSelect={handleSelectKas} onClose={() => setShowKasPicker(false)} />}
       {showKaryawanPicker && <KaryawanPicker onSelect={handleSelectKaryawan} onClose={() => setShowKaryawanPicker(false)} />}
-      {showBarangPicker && <BarangPicker jenis={jenis} onSelect={handleSelectBarang} onClose={() => setShowBarangPicker(false)} />}
+      {showBarangPicker && <BarangPicker jenis={jenis} onSelect={handleSelectBarang} onClose={() => setShowBarangPicker(false)} onAddBarang={() => setShowAddBarangModal(true)} refreshKey={barangRefreshKey} />}
       {showCabangPicker && <CabangPicker onSelect={handleSelectCabang} onClose={() => setShowCabangPicker(false)} />}
+      {showAddBarangModal && (
+        <BarangModal
+          initialData={EMPTY_FORM}
+          onClose={() => setShowAddBarangModal(false)}
+          onSave={handleSaveBarang}
+          saving={savingBarang}
+        />
+      )}
     </>
   );
 }

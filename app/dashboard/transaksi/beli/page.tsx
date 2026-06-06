@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -299,9 +300,13 @@ function KasPicker({
 function BarangPicker({
   onSelect,
   onClose,
+  onAddBarang,
+  refreshKey,
 }: {
   onSelect: (b: BarangOption) => void;
   onClose: () => void;
+  onAddBarang: () => void;
+  refreshKey: number;
 }) {
   const [q, setQ] = useState('');
   const [list, setList] = useState<BarangOption[]>([]);
@@ -314,6 +319,10 @@ function BarangPicker({
     inputRef.current?.focus();
     fetchList('');
   }, []);
+
+  useEffect(() => {
+    fetchList(q);
+  }, [refreshKey]);
 
   useEffect(() => { setSelectedIndex(0); }, [list]);
   useEffect(() => { selectedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedIndex]);
@@ -348,6 +357,12 @@ function BarangPicker({
             placeholder="Cari nama / kode / kategori..."
             className="border rounded px-2 py-1 text-sm flex-1"
           />
+          <button
+            onClick={onAddBarang}
+            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded whitespace-nowrap"
+          >
+            + Tambah Barang Baru
+          </button>
         </div>
         <div className="overflow-auto flex-1">
           <table className="w-full text-xs border-collapse">
@@ -595,6 +610,11 @@ export default function BeliPage() {
   const [pickerBarang, setPickerBarang] = useState<BarangOption | null>(null);
   const [targetRow, setTargetRow] = useState(0);
 
+  // Add barang modal
+  const [showAddBarangModal, setShowAddBarangModal] = useState(false);
+  const [savingBarang, setSavingBarang] = useState(false);
+  const [barangRefreshKey, setBarangRefreshKey] = useState(0);
+
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -792,6 +812,28 @@ export default function BeliPage() {
     setNumberBuffer(null);
     setShowSatuanPicker(false);
     setPickerBarang(null);
+  }
+
+  // ── Add barang handler ──────────────────────────────────────────────────
+
+  async function handleSaveBarang(data: BarangInput) {
+    setSavingBarang(true);
+    try {
+      const res = await fetch('/api/barang', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.message || 'Gagal menambah barang');
+        return;
+      }
+      setShowAddBarangModal(false);
+      setBarangRefreshKey(prev => prev + 1);
+    } finally {
+      setSavingBarang(false);
+    }
   }
 
   // ── Save ───────────────────────────────────────────────────────────────────
@@ -1517,13 +1559,26 @@ export default function BeliPage() {
         <KasPicker onSelect={handleSelectKas} onClose={() => setShowKasPicker(false)} />
       )}
       {showBarangPicker && (
-        <BarangPicker onSelect={handleSelectBarang} onClose={() => setShowBarangPicker(false)} />
+        <BarangPicker
+          onSelect={handleSelectBarang}
+          onClose={() => setShowBarangPicker(false)}
+          onAddBarang={() => setShowAddBarangModal(true)}
+          refreshKey={barangRefreshKey}
+        />
       )}
       {showSatuanPicker && pickerBarang && (
         <SatuanPicker
           barang={pickerBarang}
           onSelect={handleSelectSatuan}
           onClose={() => { setShowSatuanPicker(false); setPickerBarang(null); }}
+        />
+      )}
+      {showAddBarangModal && (
+        <BarangModal
+          initialData={EMPTY_FORM}
+          onClose={() => setShowAddBarangModal(false)}
+          onSave={handleSaveBarang}
+          saving={savingBarang}
         />
       )}
     </>
