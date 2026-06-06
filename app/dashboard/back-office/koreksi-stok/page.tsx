@@ -495,10 +495,7 @@ export default function KoreksiStokPage() {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         commitBuffer();
-        setItems(prev => {
-          setActiveRow(a => Math.min(prev.length - 1, a + 1));
-          return prev;
-        });
+        setActiveRow(prev => Math.min(itemsRef.current.length - 1, prev + 1));
         return;
       }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -753,7 +750,7 @@ export default function KoreksiStokPage() {
                       <td className={`border-r border-gray-200 p-0 ${isActiveRow && activeCol === 1 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
                         <div className="relative">
                           <input ref={isActiveRow ? namaInputRef : undefined}
-                            value={isActiveRow ? scanInput : row.namaBarang} readOnly={!isActiveRow}
+                            value={(isActiveRow && activeCol === 1) ? scanInput : row.namaBarang} readOnly={!isActiveRow}
                             placeholder={isActiveRow ? 'Ketik kode / nama barang, Enter untuk cari...' : ''}
                             onChange={e => setScanInput(e.target.value)}
                             onFocus={() => { setActiveRow(idx); setActiveCol(1); }}
@@ -767,10 +764,7 @@ export default function KoreksiStokPage() {
                               if (e.key === 'ArrowDown') {
                                 e.preventDefault();
                                 commitBuffer();
-                                setItems(prev => {
-                                  setActiveRow(a => Math.min(prev.length - 1, a + 1));
-                                  return prev;
-                                });
+                                setActiveRow(prev => Math.min(items.length - 1, prev + 1));
                                 return;
                               }
                               if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
