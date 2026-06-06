@@ -129,6 +129,15 @@ function IconReturnPenjualan() {
   );
 }
 
+function IconKoreksiStok() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13V8l5 5h-4a1 1 0 01-1-1z" />
+    </svg>
+  );
+}
+
 function IconBayarHutang() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full">
@@ -203,7 +212,14 @@ const TABS: NavTab[] = [
       },
     ],
   },
-  { id: 'back-office', label: 'Back Office', groups: [] },
+  { id: 'back-office', label: 'Back Office', groups: [
+      {
+        label: 'Tools',
+        items: [
+          { label: 'Koreksi Stok', href: '/dashboard/back-office/koreksi-stok', icon: <IconKoreksiStok /> },
+        ],
+      },
+    ] },
   { id: 'laporan',     label: 'Laporan',     groups: [] },
 ];
 
@@ -225,6 +241,7 @@ const ICON_COLORS: Record<string, string> = {
   '/dashboard/transaksi/return-penjualan':      'text-red-500',
   '/dashboard/transaksi/bayar-hutang':          'text-red-700',
   '/dashboard/transaksi/terima-piutang':        'text-teal-600',
+  '/dashboard/back-office/koreksi-stok':        'text-indigo-600',
 };
 
 function getTabFromPath(pathname: string): TabId {
