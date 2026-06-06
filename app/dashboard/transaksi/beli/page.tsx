@@ -126,18 +126,30 @@ function SupplierPicker({
   const [q, setQ] = useState('');
   const [list, setList] = useState<SupplierOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectedRowRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
     fetchList('');
   }, []);
 
+  useEffect(() => { setSelectedIndex(0); }, [list]);
+  useEffect(() => { selectedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedIndex]);
+
   async function fetchList(search: string) {
     setLoading(true);
     const res = await fetch(`/api/supplier?q=${encodeURIComponent(search)}`);
     setList(await res.json());
     setLoading(false);
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(prev => Math.min(prev + 1, list.length - 1)); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(prev => Math.max(prev - 1, 0)); return; }
+    if (e.key === 'Enter') { e.preventDefault(); if (list.length > 0 && list[selectedIndex]) onSelect(list[selectedIndex]); return; }
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
   }
 
   return (
@@ -152,6 +164,7 @@ function SupplierPicker({
             ref={inputRef}
             value={q}
             onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onKeyDown={handleInputKeyDown}
             placeholder="Cari nama / kode / kota..."
             className="border rounded px-2 py-1 text-sm flex-1"
           />
@@ -169,11 +182,14 @@ function SupplierPicker({
               {loading && (
                 <tr><td colSpan={5} className="text-center py-6 text-gray-400">Memuat...</td></tr>
               )}
-              {!loading && list.map((s, i) => (
+              {!loading && list.map((s, i) => {
+                const isSelected = i === selectedIndex;
+                return (
                 <tr
-                  key={s._id}
-                  className={`cursor-pointer hover:bg-blue-100 ${i % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}
+                  key={s._id} ref={isSelected ? selectedRowRef : null}
+                  className={`cursor-pointer ${isSelected ? 'bg-blue-300 font-semibold' : i % 2 === 0 ? 'bg-white hover:bg-blue-100' : 'bg-blue-50 hover:bg-blue-100'}`}
                   onClick={() => onSelect(s)}
+                  onMouseEnter={() => setSelectedIndex(i)}
                 >
                   <td className="px-2 py-1 border border-gray-200">{s.kode}</td>
                   <td className="px-2 py-1 border border-gray-200">{s.nama}</td>
@@ -181,7 +197,8 @@ function SupplierPicker({
                   <td className="px-2 py-1 border border-gray-200">{s.kota}</td>
                   <td className="px-2 py-1 border border-gray-200">{s.telp}</td>
                 </tr>
-              ))}
+                );
+              })}
               {!loading && list.length === 0 && (
                 <tr><td colSpan={5} className="text-center py-6 text-gray-400 italic">Tidak ada data</td></tr>
               )}
@@ -204,16 +221,28 @@ function KasPicker({
 }) {
   const [q, setQ] = useState('');
   const [list, setList] = useState<KasOption[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectedRowRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
     fetch('/api/kas').then(r => r.json()).then(setList);
   }, []);
 
+  useEffect(() => { setSelectedIndex(0); }, [list]);
+  useEffect(() => { selectedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedIndex]);
+
   const filtered = list.filter(
     k => k.nama.toLowerCase().includes(q.toLowerCase()) || k.kode.toLowerCase().includes(q.toLowerCase())
   );
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(prev => Math.min(prev + 1, filtered.length - 1)); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(prev => Math.max(prev - 1, 0)); return; }
+    if (e.key === 'Enter') { e.preventDefault(); if (filtered.length > 0 && filtered[selectedIndex]) onSelect(filtered[selectedIndex]); return; }
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -227,6 +256,7 @@ function KasPicker({
             ref={inputRef}
             value={q}
             onChange={e => setQ(e.target.value)}
+            onKeyDown={handleInputKeyDown}
             placeholder="Cari kode / nama..."
             className="border rounded px-2 py-1 text-sm w-full"
           />
@@ -241,17 +271,21 @@ function KasPicker({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((k, i) => (
+              {filtered.map((k, i) => {
+                const isSelected = i === selectedIndex;
+                return (
                 <tr
-                  key={k._id}
-                  className={`cursor-pointer hover:bg-blue-100 ${i % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}
+                  key={k._id} ref={isSelected ? selectedRowRef : null}
+                  className={`cursor-pointer ${isSelected ? 'bg-blue-300 font-semibold' : i % 2 === 0 ? 'bg-white hover:bg-blue-100' : 'bg-blue-50 hover:bg-blue-100'}`}
                   onClick={() => onSelect(k)}
+                  onMouseEnter={() => setSelectedIndex(i)}
                 >
                   <td className="px-2 py-1 border border-gray-200">{k.kode}</td>
                   <td className="px-2 py-1 border border-gray-200">{k.nama}</td>
                   <td className="px-2 py-1 border border-gray-200 text-right">{fmt(k.saldo)}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -272,18 +306,30 @@ function BarangPicker({
   const [q, setQ] = useState('');
   const [list, setList] = useState<BarangOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectedRowRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
     fetchList('');
   }, []);
 
+  useEffect(() => { setSelectedIndex(0); }, [list]);
+  useEffect(() => { selectedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedIndex]);
+
   async function fetchList(search: string) {
     setLoading(true);
     const res = await fetch(`/api/barang?q=${encodeURIComponent(search)}`);
     setList(await res.json());
     setLoading(false);
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(prev => Math.min(prev + 1, list.length - 1)); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(prev => Math.max(prev - 1, 0)); return; }
+    if (e.key === 'Enter') { e.preventDefault(); if (list.length > 0 && list[selectedIndex]) onSelect(list[selectedIndex]); return; }
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
   }
 
   return (
@@ -298,6 +344,7 @@ function BarangPicker({
             ref={inputRef}
             value={q}
             onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onKeyDown={handleInputKeyDown}
             placeholder="Cari nama / kode / kategori..."
             className="border rounded px-2 py-1 text-sm flex-1"
           />
@@ -315,11 +362,14 @@ function BarangPicker({
               {loading && (
                 <tr><td colSpan={8} className="text-center py-6 text-gray-400">Memuat...</td></tr>
               )}
-              {!loading && list.map((b, i) => (
+              {!loading && list.map((b, i) => {
+                const isSelected = i === selectedIndex;
+                return (
                 <tr
-                  key={b._id}
-                  className={`cursor-pointer hover:bg-blue-100 ${i % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}
+                  key={b._id} ref={isSelected ? selectedRowRef : null}
+                  className={`cursor-pointer ${isSelected ? 'bg-blue-300 font-semibold' : i % 2 === 0 ? 'bg-white hover:bg-blue-100' : 'bg-blue-50 hover:bg-blue-100'}`}
                   onClick={() => onSelect(b)}
+                  onMouseEnter={() => setSelectedIndex(i)}
                 >
                   <td className="px-2 py-1 border border-gray-200">{b.kode}</td>
                   <td className="px-2 py-1 border border-gray-200">{b.nama}</td>
@@ -330,7 +380,8 @@ function BarangPicker({
                   <td className="px-2 py-1 border border-gray-200 text-right">{fmt(b.hargaBeli)}</td>
                   <td className="px-2 py-1 border border-gray-200 text-right">{fmt(b.hargaJual)}</td>
                 </tr>
-              ))}
+                );
+              })}
               {!loading && list.length === 0 && (
                 <tr><td colSpan={8} className="text-center py-6 text-gray-400 italic">Tidak ada data</td></tr>
               )}
@@ -398,31 +449,53 @@ function SatuanPicker({
 
 // ─── Number Cell (inline editable) ────────────────────────────────────────────
 
-function NumberCell({
-  value, onChange,
-}: { value: number; onChange: (v: number) => void }) {
+function NumberCell({ value, onChange, onNavigate, bufferStr }: {
+  value: number;
+  onChange: (v: number) => void;
+  onNavigate?: (dir: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight') => void;
+  bufferStr?: string;
+}) {
   const [editing, setEditing] = useState(false);
   const [raw, setRaw] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) setTimeout(() => inputRef.current?.focus(), 0);
+  }, [editing]);
+
+  function commitAndClose() {
+    onChange(parseFloat(raw) || 0);
+    setEditing(false);
+  }
+
+  const showBuffer = bufferStr && bufferStr.length > 0;
+
   return editing ? (
-    <input
-      autoFocus
-      type="number"
-      value={raw}
+    <input ref={inputRef} type="number" value={raw}
       onChange={e => setRaw(e.target.value)}
-      onBlur={() => { onChange(parseFloat(raw) || 0); setEditing(false); }}
-      onKeyDown={e => { if (e.key === 'Enter') { onChange(parseFloat(raw) || 0); setEditing(false); } }}
-      className="w-full text-right bg-white border-0 outline-none text-xs px-1"
-    />
+      onBlur={() => commitAndClose()}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { commitAndClose(); return; }
+        if (e.key === 'Escape') { setEditing(false); return; }
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault();
+          commitAndClose();
+          onNavigate?.(e.key as 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight');
+          return;
+        }
+      }}
+      className="w-full text-right bg-yellow-100 border border-orange-400 outline-none text-xs px-1 rounded" />
   ) : (
-    <span
-      className="block text-right cursor-pointer text-xs px-1 select-none"
-      onDoubleClick={() => { setRaw(String(value || '')); setEditing(true); }}
-      onClick={() => { setRaw(String(value || '')); setEditing(true); }}
-    >
-      {value === 0 ? '' : fmt(value)}
+    <span className={`block text-right cursor-pointer text-xs px-1 select-none rounded ${showBuffer ? 'text-blue-700 font-bold' : ''}`}
+      onClick={() => { setRaw(String(value || '')); setEditing(true); }}>
+      {showBuffer ? bufferStr : value === 0 ? '' : fmt(value)}
     </span>
   );
 }
+
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
+const EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11]; // namaBarang, qty, hrgBeli, hgaToko, pctToko, hrgPartai, pctPartai, hrgCabang, pctCabang, disc
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
@@ -458,6 +531,61 @@ export default function BeliPage() {
   // Items state
   const [items, setItems] = useState<ItemRow[]>([emptyRow()]);
   const [activeRow, setActiveRow] = useState(0);
+  const [activeCol, setActiveCol] = useState(1); // 1 = nama barang
+
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  // Number input buffer for multi-digit typing
+  const [numberBuffer, setNumberBuffer] = useState<{ row: number; col: number; str: string } | null>(null);
+  const numberBufferRef = useRef(numberBuffer);
+  numberBufferRef.current = numberBuffer;
+
+  // Apply a buffer value to the actual item (called on each keystroke for real-time totals)
+  const applyBufferValue = useCallback((rowIdx: number, col: number, val: number) => {
+    const row = itemsRef.current[rowIdx];
+    if (!row?.barangId) return;
+    const hrgPcs = hrgBeliPerPcs(row);
+
+    if (col === 3) { // qty
+      updateItem(rowIdx, { qty: val });
+    } else if (col === 4) { // hrgBeli
+      const pcs = row.satuanType === 'beli' ? val / row.isi : val;
+      updateItem(rowIdx, { hrgBeli: val, pctToko: pctFrom(row.hgaToko, pcs), pctPartai: pctFrom(row.hrgPartai, pcs), pctCabang: pctFrom(row.hrgCabang, pcs) });
+    } else if (col === 5) { // hgaToko
+      updateItem(rowIdx, { hgaToko: val, pctToko: pctFrom(val, hrgPcs) });
+    } else if (col === 6) { // pctToko
+      updateItem(rowIdx, { pctToko: val, hgaToko: Math.round(hrgPcs * (1 + val / 100)) });
+    } else if (col === 7) { // hrgPartai
+      updateItem(rowIdx, { hrgPartai: val, pctPartai: pctFrom(val, hrgPcs) });
+    } else if (col === 8) { // pctPartai
+      updateItem(rowIdx, { pctPartai: val, hrgPartai: Math.round(hrgPcs * (1 + val / 100)) });
+    } else if (col === 9) { // hrgCabang
+      updateItem(rowIdx, { hrgCabang: val, pctCabang: pctFrom(val, hrgPcs) });
+    } else if (col === 10) { // pctCabang
+      updateItem(rowIdx, { pctCabang: val, hrgCabang: Math.round(hrgPcs * (1 + val / 100)) });
+    } else if (col === 11) { // disc
+      updateItem(rowIdx, { disc: val });
+    }
+  }, []);
+
+  // Commit buffer to actual value
+  const commitBuffer = useCallback(() => {
+    const buf = numberBufferRef.current;
+    if (!buf || buf.str === '') return;
+    const val = parseFloat(buf.str);
+    if (isNaN(val)) { setNumberBuffer(null); return; }
+    applyBufferValue(buf.row, buf.col, val);
+    setNumberBuffer(null);
+  }, [applyBufferValue]);
+
+  // Clear buffer when active cell changes (row or col)
+  useEffect(() => {
+    const buf = numberBufferRef.current;
+    if (buf && (buf.row !== activeRow || buf.col !== activeCol)) {
+      commitBuffer();
+    }
+  }, [activeRow, activeCol, commitBuffer]);
 
   // Picker states
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
@@ -470,6 +598,18 @@ export default function BeliPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [scanInput, setScanInput] = useState('');
+  const namaInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setScanInput(''); }, [activeRow]);
+
+  useEffect(() => {
+    if (showForm && activeCol === 1) {
+      setTimeout(() => namaInputRef.current?.focus(), 50);
+    } else if (activeCol !== 1) {
+      namaInputRef.current?.blur();
+    }
+  }, [showForm, activeRow, activeCol]);
 
   // ── Fetch list ─────────────────────────────────────────────────────────────
 
@@ -495,7 +635,7 @@ export default function BeliPage() {
     setKeterangan(''); setPembayaran('Cash'); setTempoHari(0);
     setDisc(0); setPpn(0); setCetakBarcode(false);
     setUpdateHargaJual(false); setCetakNota(false);
-    setItems([emptyRow()]); setActiveRow(0);
+    setItems([emptyRow()]); setActiveRow(0); setActiveCol(1); setNumberBuffer(null);
     setError('');
     setShowForm(true);
   }
@@ -531,7 +671,7 @@ export default function BeliPage() {
       hasExpired: !!item.expired,
     }));
     setItems(ensureEmptyLastRow(loadedItems));
-    setActiveRow(0);
+    setActiveRow(0); setActiveCol(1); setNumberBuffer(null);
     setError('');
     setShowForm(true);
   }
@@ -611,14 +751,45 @@ export default function BeliPage() {
       setShowSatuanPicker(true);
     } else {
       applyBarangToRow(targetRow, b, 'jual');
-      setItems(prev => ensureEmptyLastRow(prev));
+      setItems(prev => {
+        const next = ensureEmptyLastRow(prev);
+        setActiveRow(Math.min(targetRow + 1, next.length - 1));
+        return next;
+      });
+      setActiveCol(1);
+      setNumberBuffer(null);
+    }
+  }
+
+  // Exact match from barcode scan (skip satuan picker if only one satuan)
+  function handleBarangExactMatch(idx: number, b: BarangOption) {
+    setScanInput('');
+    if (b.satuanBeli !== b.satuanJual || b.isi > 1) {
+      setTargetRow(idx);
+      setPickerBarang(b);
+      setShowSatuanPicker(true);
+    } else {
+      applyBarangToRow(idx, b, 'jual');
+      setItems(prev => {
+        const next = ensureEmptyLastRow(prev);
+        setActiveRow(Math.min(idx + 1, next.length - 1));
+        return next;
+      });
+      setActiveCol(1);
+      setNumberBuffer(null);
     }
   }
 
   function handleSelectSatuan(type: 'jual' | 'beli') {
     if (!pickerBarang) return;
     applyBarangToRow(targetRow, pickerBarang, type);
-    setItems(prev => ensureEmptyLastRow(prev));
+    setItems(prev => {
+      const next = ensureEmptyLastRow(prev);
+      setActiveRow(Math.min(targetRow + 1, next.length - 1));
+      return next;
+    });
+    setActiveCol(1);
+    setNumberBuffer(null);
     setShowSatuanPicker(false);
     setPickerBarang(null);
   }
@@ -674,6 +845,9 @@ export default function BeliPage() {
     }
   }
 
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+
   // ── Delete ─────────────────────────────────────────────────────────────────
 
   async function handleHapus() {
@@ -683,6 +857,111 @@ export default function BeliPage() {
     setSelectedId(null);
     fetchList();
   }
+
+  // ── Keyboard navigation ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!showForm) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        commitBuffer();
+        setActiveRow(prev => Math.max(0, prev - 1));
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        commitBuffer();
+        setItems(prev => {
+          setActiveRow(a => Math.min(prev.length - 1, a + 1));
+          return prev;
+        });
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        commitBuffer();
+        const dir = e.key === 'ArrowRight' ? 1 : -1;
+        setActiveCol(prev => {
+          const idx = EDITABLE_COLS.indexOf(prev);
+          if (idx === -1) return EDITABLE_COLS[0];
+          const newIdx = Math.max(0, Math.min(EDITABLE_COLS.length - 1, idx + dir));
+          return EDITABLE_COLS[newIdx];
+        });
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeCol === 1) {
+          commitBuffer();
+          setTargetRow(activeRow);
+          setShowBarangPicker(true);
+        } else {
+          commitBuffer();
+        }
+        return;
+      }
+
+      if (e.key === 'Backspace') {
+        const buf = numberBufferRef.current;
+        if (buf && buf.row === activeRow && buf.col === activeCol && buf.str.length > 0) {
+          e.preventDefault();
+          const newStr = buf.str.slice(0, -1);
+          if (newStr === '') {
+            setNumberBuffer(null);
+            applyBufferValue(buf.row, buf.col, 0);
+          } else {
+            setNumberBuffer({ ...buf, str: newStr });
+            applyBufferValue(buf.row, buf.col, parseFloat(newStr));
+          }
+        }
+        return;
+      }
+
+      if (/^[0-9.]$/.test(e.key) && EDITABLE_COLS.slice(1).includes(activeCol)) {
+        e.preventDefault();
+        const row = itemsRef.current[activeRow];
+        if (!row?.barangId) return;
+
+        setNumberBuffer(prev => {
+          let newStr: string;
+          if (prev && prev.row === activeRow && prev.col === activeCol) {
+            if (e.key === '.' && prev.str.includes('.')) return prev;
+            newStr = prev.str + e.key;
+          } else {
+            newStr = e.key;
+          }
+          const val = parseFloat(newStr);
+          if (!isNaN(val)) {
+            applyBufferValue(activeRow, activeCol, val);
+          }
+          return { row: activeRow, col: activeCol, str: newStr };
+        });
+        return;
+      }
+
+      if (e.key === 'F8') {
+        e.preventDefault();
+        handleSaveRef.current();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowForm(false);
+        setEditId(null);
+        return;
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showForm, activeRow, activeCol, items.length]);
 
   // ─── List columns ──────────────────────────────────────────────────────────
 
@@ -932,18 +1211,18 @@ export default function BeliPage() {
               </thead>
               <tbody>
                 {items.map((row, idx) => {
-                  const isActive = idx === activeRow;
+                  const isActiveRow = idx === activeRow;
                   const isEmpty = !row.barangId;
                   const hrgPcs = hrgBeliPerPcs(row);
 
                   return (
                     <tr
                       key={row._key}
-                      onClick={() => setActiveRow(idx)}
+                      onClick={() => { setActiveRow(idx); setActiveCol(1); }}
                       className={`border-b border-gray-200 ${
-                        isActive && isEmpty
+                        isActiveRow && isEmpty
                           ? 'bg-yellow-200'
-                          : isActive
+                          : isActiveRow
                           ? 'bg-blue-100'
                           : idx % 2 === 0
                           ? 'bg-white'
@@ -956,15 +1235,58 @@ export default function BeliPage() {
                       </td>
 
                       {/* NAMA BARANG */}
-                      <td className="border-r border-gray-200 p-0">
+                      <td className={`border-r border-gray-200 p-0 ${isActiveRow && activeCol === 1 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
                         <input
-                          value={row.namaBarang}
-                          readOnly
-                          placeholder={isActive ? 'Klik untuk pilih...' : ''}
-                          onFocus={() => setActiveRow(idx)}
-                          onKeyDown={e => { if (e.key === 'Enter') { setTargetRow(idx); setShowBarangPicker(true); } }}
-                          onClick={() => { setActiveRow(idx); setTargetRow(idx); setShowBarangPicker(true); }}
-                          className="w-full px-2 py-0.5 bg-transparent text-xs cursor-pointer outline-none"
+                          ref={isActiveRow ? namaInputRef : undefined}
+                          value={isActiveRow ? scanInput : row.namaBarang}
+                          readOnly={!isActiveRow}
+                          placeholder={isActiveRow ? 'Scan barcode / ketik kode...' : ''}
+                          onChange={e => setScanInput(e.target.value)}
+                          onFocus={() => { setActiveRow(idx); setActiveCol(1); }}
+                          onKeyDown={async e => {
+                            // Arrow keys → navigate (since input is always focused)
+                            if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              commitBuffer();
+                              setActiveRow(prev => Math.max(0, prev - 1));
+                              return;
+                            }
+                            if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+                              commitBuffer();
+                              setItems(prev => {
+                                setActiveRow(a => Math.min(prev.length - 1, a + 1));
+                                return prev;
+                              });
+                              return;
+                            }
+                            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                              e.preventDefault();
+                              commitBuffer();
+                              const dir = e.key === 'ArrowRight' ? 1 : -1;
+                              setActiveCol(prev => {
+                                const idx = EDITABLE_COLS.indexOf(prev);
+                                if (idx === -1) return EDITABLE_COLS[0];
+                                const newIdx = Math.max(0, Math.min(EDITABLE_COLS.length - 1, idx + dir));
+                                return EDITABLE_COLS[newIdx];
+                              });
+                              return;
+                            }
+                            if (e.key !== 'Enter') return;
+                            const code = scanInput.trim();
+                            if (!code) { setTargetRow(idx); setShowBarangPicker(true); return; }
+                            const res = await fetch('/api/barang?q=' + encodeURIComponent(code));
+                            const list: BarangOption[] = await res.json();
+                            const exact = list.find((b: BarangOption) => b.kode.toUpperCase() === code.toUpperCase());
+                            if (exact) {
+                              handleBarangExactMatch(idx, exact);
+                            } else {
+                              setTargetRow(idx);
+                              setShowBarangPicker(true);
+                            }
+                          }}
+                          onClick={() => { setActiveRow(idx); setActiveCol(1); if (!isActiveRow) { setTargetRow(idx); setShowBarangPicker(true); } }}
+                          className="w-full px-2 py-0.5 bg-transparent text-gray-900 text-xs cursor-pointer outline-none"
                         />
                       </td>
 
@@ -973,7 +1295,7 @@ export default function BeliPage() {
                         <input
                           value={row.satuan}
                           readOnly
-                          onFocus={() => setActiveRow(idx)}
+                          onFocus={() => { setActiveRow(idx); setActiveCol(1); }}
                           onClick={() => {
                             if (!row.barangId) return;
                             setTargetRow(idx); setActiveRow(idx);
@@ -986,56 +1308,81 @@ export default function BeliPage() {
                       </td>
 
                       {/* QTY */}
-                      <td className="border-r border-gray-200">
-                        <NumberCell
-                          value={row.qty}
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 3 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.qty}
+                          bufferStr={isActiveRow && activeCol === 3 && numberBuffer?.row === idx && numberBuffer?.col === 3 ? numberBuffer.str : undefined}
                           onChange={v => updateItem(idx, { qty: v })}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
                         />
                       </td>
 
                       {/* HRG BELI */}
-                      <td className="border-r border-gray-200">
-                        <NumberCell
-                          value={row.hrgBeli}
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 4 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.hrgBeli}
+                          bufferStr={isActiveRow && activeCol === 4 && numberBuffer?.row === idx && numberBuffer?.col === 4 ? numberBuffer.str : undefined}
                           onChange={v => {
                             const pcs = row.satuanType === 'beli' ? v / row.isi : v;
-                            updateItem(idx, {
-                              hrgBeli: v,
-                              pctToko: pctFrom(row.hgaToko, pcs),
-                              pctPartai: pctFrom(row.hrgPartai, pcs),
-                              pctCabang: pctFrom(row.hrgCabang, pcs),
-                            });
+                            updateItem(idx, { hrgBeli: v, pctToko: pctFrom(row.hgaToko, pcs), pctPartai: pctFrom(row.hrgPartai, pcs), pctCabang: pctFrom(row.hrgCabang, pcs) });
                           }}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
                         />
                       </td>
 
                       {/* HGA TOKO + (%) */}
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.hgaToko} onChange={v => updateItem(idx, { hgaToko: v, pctToko: pctFrom(v, hrgPcs) })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 5 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.hgaToko}
+                          bufferStr={isActiveRow && activeCol === 5 && numberBuffer?.row === idx && numberBuffer?.col === 5 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { hgaToko: v, pctToko: pctFrom(v, hrgPcs) })}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
+                        />
                       </td>
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.pctToko} onChange={v => updateItem(idx, { pctToko: v, hgaToko: Math.round(hrgPcs * (1 + v / 100)) })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 6 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.pctToko}
+                          bufferStr={isActiveRow && activeCol === 6 && numberBuffer?.row === idx && numberBuffer?.col === 6 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { pctToko: v, hgaToko: Math.round(hrgPcs * (1 + v / 100)) })}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
+                        />
                       </td>
 
                       {/* HRG PARTAI + (%) */}
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.hrgPartai} onChange={v => updateItem(idx, { hrgPartai: v, pctPartai: pctFrom(v, hrgPcs) })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 7 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.hrgPartai}
+                          bufferStr={isActiveRow && activeCol === 7 && numberBuffer?.row === idx && numberBuffer?.col === 7 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { hrgPartai: v, pctPartai: pctFrom(v, hrgPcs) })}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
+                        />
                       </td>
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.pctPartai} onChange={v => updateItem(idx, { pctPartai: v, hrgPartai: Math.round(hrgPcs * (1 + v / 100)) })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 8 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.pctPartai}
+                          bufferStr={isActiveRow && activeCol === 8 && numberBuffer?.row === idx && numberBuffer?.col === 8 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { pctPartai: v, hrgPartai: Math.round(hrgPcs * (1 + v / 100)) })}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
+                        />
                       </td>
 
                       {/* HRG CABANG + (%) */}
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.hrgCabang} onChange={v => updateItem(idx, { hrgCabang: v, pctCabang: pctFrom(v, hrgPcs) })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 9 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.hrgCabang}
+                          bufferStr={isActiveRow && activeCol === 9 && numberBuffer?.row === idx && numberBuffer?.col === 9 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { hrgCabang: v, pctCabang: pctFrom(v, hrgPcs) })}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
+                        />
                       </td>
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.pctCabang} onChange={v => updateItem(idx, { pctCabang: v, hrgCabang: Math.round(hrgPcs * (1 + v / 100)) })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 10 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.pctCabang}
+                          bufferStr={isActiveRow && activeCol === 10 && numberBuffer?.row === idx && numberBuffer?.col === 10 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { pctCabang: v, hrgCabang: Math.round(hrgPcs * (1 + v / 100)) })}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
+                        />
                       </td>
 
                       {/* DISC */}
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.disc} onChange={v => updateItem(idx, { disc: v })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 11 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.disc}
+                          bufferStr={isActiveRow && activeCol === 11 && numberBuffer?.row === idx && numberBuffer?.col === 11 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { disc: v })}
+                          onNavigate={(dir) => setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0)}
+                        />
                       </td>
 
                       {/* RUPIAH */}
@@ -1078,8 +1425,16 @@ export default function BeliPage() {
           </div>
 
           {/* Note */}
-          <div className="bg-blue-100 border-t border-blue-300 text-center text-xs text-gray-500 py-0.5 shrink-0">
-            Note : Harga jual (toko, partai, cabang) yang diisikan adalah harga per PCS
+          <div className="bg-blue-100 border-t border-blue-300 text-center text-xs text-gray-500 py-0.5 shrink-0 flex items-center justify-center gap-3">
+            <span>Note : Harga jual (toko, partai, cabang) yang diisikan adalah harga per PCS</span>
+            <span>|</span>
+            <span>↑↓←→ Navigasi</span>
+            <span>|</span>
+            <span>Enter: Pilih Barang</span>
+            <span>|</span>
+            <span>F8: SIMPAN</span>
+            <span>|</span>
+            <span>ESC: Batal</span>
           </div>
 
           {/* Bottom section */}

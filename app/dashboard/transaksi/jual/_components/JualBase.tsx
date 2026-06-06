@@ -292,15 +292,53 @@ function BarangPicker({ jenis, onSelect, onClose }: {
   const [q, setQ] = useState('');
   const [list, setList] = useState<BarangOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const selectedRowRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); fetchList(''); }, []);
+
+  // Reset selection when list changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [list]);
+
+  // Scroll selected row into view
+  useEffect(() => {
+    selectedRowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex]);
 
   async function fetchList(search: string) {
     setLoading(true);
     const res = await fetch(`/api/barang?q=${encodeURIComponent(search)}`);
     setList(await res.json());
     setLoading(false);
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => Math.min(prev + 1, list.length - 1));
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => Math.max(prev - 1, 0));
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (list.length > 0 && list[selectedIndex]) {
+        onSelect(list[selectedIndex]);
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
   }
 
   return (
@@ -313,10 +351,11 @@ function BarangPicker({ jenis, onSelect, onClose }: {
         <div className="p-3 border-b">
           <input ref={inputRef} value={q}
             onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onKeyDown={handleInputKeyDown}
             placeholder="Scan barcode, atau ketik kode / nama barang..."
             className="border rounded px-2 py-1 text-sm w-full" />
         </div>
-        <div className="overflow-auto flex-1">
+        <div ref={listContainerRef} className="overflow-auto flex-1">
           <table className="w-full text-xs border-collapse">
             <thead className="bg-green-600 text-white sticky top-0">
               <tr>{['KODE','NAMA BARANG','SATUAN','STOK','LOKASI',
@@ -333,9 +372,12 @@ function BarangPicker({ jenis, onSelect, onClose }: {
                   : jenis === 'partai'
                   ? (b.hargaJualPartai || b.hargaJual)
                   : (b.hargaJualCabang || b.hargaJual);
+                const isSelected = i === selectedIndex;
                 return (
-                  <tr key={b._id} onClick={() => onSelect(b)}
-                    className={`cursor-pointer hover:bg-green-100 ${i % 2 === 0 ? 'bg-white' : 'bg-green-50'} ${b.stok <= 0 ? 'text-orange-500' : ''}`}>
+                  <tr key={b._id} ref={isSelected ? selectedRowRef : null}
+                    onClick={() => onSelect(b)}
+                    onMouseEnter={() => setSelectedIndex(i)}
+                    className={`cursor-pointer ${isSelected ? 'bg-green-300 font-semibold' : i % 2 === 0 ? 'bg-white hover:bg-green-100' : 'bg-green-50 hover:bg-green-100'} ${b.stok <= 0 ? 'text-orange-500' : ''}`}>
                     <td className="px-2 py-1 border border-gray-200">{b.kode}</td>
                     <td className="px-2 py-1 border border-gray-200">{b.nama}</td>
                     <td className="px-2 py-1 border border-gray-200">{b.satuanJual}</td>
@@ -415,22 +457,57 @@ function CabangPicker({ onSelect, onClose }: {
 
 // ─── Number Cell ───────────────────────────────────────────────────────────────
 
-function NumberCell({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function NumberCell({ value, onChange, onNavigate, bufferStr }: {
+  value: number;
+  onChange: (v: number) => void;
+  onNavigate?: (dir: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight') => void;
+  bufferStr?: string;
+}) {
   const [editing, setEditing] = useState(false);
   const [raw, setRaw] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus when entering edit mode
+  useEffect(() => {
+    if (editing) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [editing]);
+
+  function commitAndClose() {
+    onChange(parseFloat(raw) || 0);
+    setEditing(false);
+  }
+
+  const showBuffer = bufferStr && bufferStr.length > 0;
+
   return editing ? (
-    <input autoFocus type="number" value={raw}
+    <input ref={inputRef} type="number" value={raw}
       onChange={e => setRaw(e.target.value)}
-      onBlur={() => { onChange(parseFloat(raw) || 0); setEditing(false); }}
-      onKeyDown={e => { if (e.key === 'Enter') { onChange(parseFloat(raw) || 0); setEditing(false); } }}
-      className="w-full text-right bg-white border-0 outline-none text-xs px-1" />
+      onBlur={() => commitAndClose()}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { commitAndClose(); return; }
+        if (e.key === 'Escape') { setEditing(false); return; }
+        // Arrow keys: commit value + close + let parent navigate
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault();
+          commitAndClose();
+          onNavigate?.(e.key as 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight');
+          return;
+        }
+      }}
+      className="w-full text-right bg-yellow-100 border border-orange-400 outline-none text-xs px-1 rounded" />
   ) : (
-    <span className="block text-right cursor-pointer text-xs px-1 select-none"
+    <span className={`block text-right cursor-pointer text-xs px-1 select-none rounded ${showBuffer ? 'text-blue-700 font-bold' : ''}`}
       onClick={() => { setRaw(String(value || '')); setEditing(true); }}>
-      {value === 0 ? '' : fmt(value)}
+      {showBuffer ? bufferStr : value === 0 ? '' : fmt(value)}
     </span>
   );
 }
+
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
+const EDITABLE_COLS = [1, 3, 4, 5, 6]; // namaBarang, qty, harga, discPct, discRp
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
@@ -477,6 +554,52 @@ function JualBaseContent({ jenis }: JualBaseProps) {
   // Items
   const [items, setItems] = useState<ItemRow[]>([emptyRow()]);
   const [activeRow, setActiveRow] = useState(0);
+  const [activeCol, setActiveCol] = useState(1); // 1 = nama barang
+
+  // Ref for latest items (used by keyboard handler)
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  // Number input buffer for multi-digit typing
+  const [numberBuffer, setNumberBuffer] = useState<{ row: number; col: number; str: string } | null>(null);
+  const numberBufferRef = useRef(numberBuffer);
+  numberBufferRef.current = numberBuffer;
+
+  // Apply a buffer value to the actual item (called on each keystroke for real-time totals)
+  const applyBufferValue = useCallback((rowIdx: number, col: number, val: number) => {
+    const row = itemsRef.current[rowIdx];
+    if (!row?.barangId) return;
+
+    if (col === 3) { // qty
+      const discRp = Math.round(val * row.harga * (row.discPct / 100));
+      updateItem(rowIdx, { qty: val, discRp });
+    } else if (col === 4) { // harga
+      const discRp = Math.round(row.qty * val * (row.discPct / 100));
+      updateItem(rowIdx, { harga: val, discRp });
+    } else if (col === 5) { // discPct
+      updateItem(rowIdx, { discPct: val });
+    } else if (col === 6) { // discRp
+      updateItem(rowIdx, { discRp: val });
+    }
+  }, []);
+
+  // Commit buffer to actual value
+  const commitBuffer = useCallback(() => {
+    const buf = numberBufferRef.current;
+    if (!buf || buf.str === '') return;
+    const val = parseFloat(buf.str);
+    if (isNaN(val)) { setNumberBuffer(null); return; }
+    applyBufferValue(buf.row, buf.col, val);
+    setNumberBuffer(null);
+  }, [applyBufferValue]);
+
+  // Clear buffer when active cell changes (row or col)
+  useEffect(() => {
+    const buf = numberBufferRef.current;
+    if (buf && (buf.row !== activeRow || buf.col !== activeCol)) {
+      commitBuffer();
+    }
+  }, [activeRow, activeCol, commitBuffer]);
 
   // Pickers
   const [showPelangganPicker, setShowPelangganPicker] = useState(false);
@@ -488,6 +611,20 @@ function JualBaseContent({ jenis }: JualBaseProps) {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [scanInput, setScanInput] = useState(''); // barcode / kode typing
+  const namaInputRef = useRef<HTMLInputElement>(null);
+
+  // Clear scan input when active row changes
+  useEffect(() => { setScanInput(''); }, [activeRow]);
+
+  // Auto-focus/blur nama barang input
+  useEffect(() => {
+    if (showForm && activeCol === 1) {
+      setTimeout(() => namaInputRef.current?.focus(), 50);
+    } else if (activeCol !== 1) {
+      namaInputRef.current?.blur();
+    }
+  }, [showForm, activeRow, activeCol]);
 
   // ── Fetch list ─────────────────────────────────────────────────────────────
 
@@ -561,7 +698,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
     setCabangId(''); setCabangKode(''); setCabangNama('');
     setSpg(''); setPembayaran('Cash'); setTempoHari(0); setKeterangan('');
     setDisc(0); setPpn(0); setCetakNota(true);
-    setItems([emptyRow()]); setActiveRow(0); setError('');
+    setItems([emptyRow()]); setActiveRow(0); setActiveCol(1); setNumberBuffer(null); setError('');
     setShowForm(true);
   }
 
@@ -583,7 +720,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
       ...it, _key: Math.random().toString(36).slice(2),
     }));
     setItems(ensureEmptyLastRow(loadedItems));
-    setActiveRow(0); setError(''); setShowForm(true);
+    setActiveRow(0); setActiveCol(1); setNumberBuffer(null); setError(''); setShowForm(true);
   }
 
   // ── Picker callbacks ───────────────────────────────────────────────────────
@@ -610,7 +747,14 @@ function JualBaseContent({ jenis }: JualBaseProps) {
 
   function handleSelectBarang(b: BarangOption) {
     applyBarangToRow(targetRow, b);
-    setItems(prev => ensureEmptyLastRow(prev));
+    setItems(prev => {
+      const next = ensureEmptyLastRow(prev);
+      // After selecting, move active row to the next row, nama barang column
+      setActiveRow(Math.min(targetRow + 1, next.length - 1));
+      return next;
+    });
+    setActiveCol(1);
+    setNumberBuffer(null);
     setShowBarangPicker(false);
   }
 
@@ -655,6 +799,9 @@ function JualBaseContent({ jenis }: JualBaseProps) {
     }
   }
 
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+
   // ── Delete ─────────────────────────────────────────────────────────────────
 
   async function handleHapus() {
@@ -663,6 +810,120 @@ function JualBaseContent({ jenis }: JualBaseProps) {
     await fetch(`/api/transaksi-jual/${selectedId}`, { method: 'DELETE' });
     setSelectedId(null); fetchList();
   }
+
+  // ── Keyboard navigation ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!showForm) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      // Don't intercept when typing in an input/select/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+      // Arrow keys → commit buffer first, then navigate
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        commitBuffer();
+        setActiveRow(prev => Math.max(0, prev - 1));
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        commitBuffer();
+        setItems(prev => {
+          setActiveRow(a => Math.min(prev.length - 1, a + 1));
+          return prev;
+        });
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        commitBuffer();
+        const dir = e.key === 'ArrowRight' ? 1 : -1;
+        setActiveCol(prev => {
+          const idx = EDITABLE_COLS.indexOf(prev);
+          if (idx === -1) return EDITABLE_COLS[0];
+          const newIdx = Math.max(0, Math.min(EDITABLE_COLS.length - 1, idx + dir));
+          return EDITABLE_COLS[newIdx];
+        });
+        return;
+      }
+
+      // Enter → open picker on nama barang, commit buffer on number cols
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeCol === 1) {
+          commitBuffer();
+          setTargetRow(activeRow);
+          setShowBarangPicker(true);
+        } else {
+          // Commit buffer on number column
+          commitBuffer();
+        }
+        return;
+      }
+
+      // Backspace → remove last char from buffer + update value
+      if (e.key === 'Backspace') {
+        const buf = numberBufferRef.current;
+        if (buf && buf.row === activeRow && buf.col === activeCol && buf.str.length > 0) {
+          e.preventDefault();
+          const newStr = buf.str.slice(0, -1);
+          if (newStr === '') {
+            setNumberBuffer(null);
+            // Reset value to 0
+            applyBufferValue(buf.row, buf.col, 0);
+          } else {
+            setNumberBuffer({ ...buf, str: newStr });
+            applyBufferValue(buf.row, buf.col, parseFloat(newStr));
+          }
+        }
+        return;
+      }
+
+      // Number keys (0-9) or dot on number columns → append to buffer + update value
+      if (/^[0-9.]$/.test(e.key) && EDITABLE_COLS.slice(1).includes(activeCol)) {
+        e.preventDefault();
+        const row = itemsRef.current[activeRow];
+        if (!row?.barangId) return; // don't edit empty rows
+
+        setNumberBuffer(prev => {
+          let newStr: string;
+          if (prev && prev.row === activeRow && prev.col === activeCol) {
+            if (e.key === '.' && prev.str.includes('.')) return prev;
+            newStr = prev.str + e.key;
+          } else {
+            newStr = e.key;
+          }
+          const val = parseFloat(newStr);
+          if (!isNaN(val)) {
+            applyBufferValue(activeRow, activeCol, val);
+          }
+          return { row: activeRow, col: activeCol, str: newStr };
+        });
+        return;
+      }
+
+      // F8 → Save
+      if (e.key === 'F8') {
+        e.preventDefault();
+        handleSaveRef.current();
+        return;
+      }
+
+      // Escape → Close form
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowForm(false);
+        setEditId(null);
+        return;
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showForm, activeRow, activeCol, items.length]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -876,26 +1137,78 @@ function JualBaseContent({ jenis }: JualBaseProps) {
               </thead>
               <tbody>
                 {items.map((row, idx) => {
-                  const isActive = idx === activeRow;
+                  const isActiveRow = idx === activeRow;
                   const isEmpty = !row.barangId;
 
                   return (
-                    <tr key={row._key} onClick={() => setActiveRow(idx)}
-                      className={`border-b border-gray-200 ${isActive && isEmpty ? 'bg-yellow-200' : isActive ? 'bg-green-100' : idx % 2 === 0 ? 'bg-white' : 'bg-green-50/30'}`}>
+                    <tr key={row._key} onClick={() => { setActiveRow(idx); setActiveCol(1); }}
+                      className={`border-b border-gray-200 ${isActiveRow && isEmpty ? 'bg-yellow-100' : isActiveRow ? 'bg-green-50' : idx % 2 === 0 ? 'bg-white' : 'bg-green-50/30'}`}>
 
                       <td className="px-1 py-0.5 border-r border-gray-200 text-center text-gray-400">
                         {isEmpty ? '' : idx + 1}
                       </td>
 
-                      <td className="border-r border-gray-200 p-0">
+                      <td className={`border-r border-gray-200 p-0 ${isActiveRow && activeCol === 1 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
                         <div className="relative">
-                          <input value={row.namaBarang} readOnly
-                            placeholder={isActive ? 'Scan Barcode, atau ketik kode atau nama barang...!!!' : ''}
-                            onFocus={() => setActiveRow(idx)}
-                            onKeyDown={e => { if (e.key === 'Enter') { setTargetRow(idx); setShowBarangPicker(true); } }}
-                            onClick={() => { setActiveRow(idx); setTargetRow(idx); setShowBarangPicker(true); }}
-                            className="w-full px-2 py-0.5 bg-transparent text-xs cursor-pointer outline-none" />
-                          {isActive && row.barangId && (
+                          <input ref={isActiveRow ? namaInputRef : undefined}
+                            value={isActiveRow ? scanInput : row.namaBarang} readOnly={!isActiveRow}
+                            placeholder={isActiveRow ? 'Scan Barcode, atau ketik kode atau nama barang...!!!' : ''}
+                            onChange={e => setScanInput(e.target.value)}
+                            onFocus={() => { setActiveRow(idx); setActiveCol(1); }}
+                            onKeyDown={async e => {
+                              // Arrow keys → navigate (since input is always focused)
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                commitBuffer();
+                                setActiveRow(prev => Math.max(0, prev - 1));
+                                return;
+                              }
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                commitBuffer();
+                                setItems(prev => {
+                                  setActiveRow(a => Math.min(prev.length - 1, a + 1));
+                                  return prev;
+                                });
+                                return;
+                              }
+                              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                                e.preventDefault();
+                                commitBuffer();
+                                const dir = e.key === 'ArrowRight' ? 1 : -1;
+                                setActiveCol(prev => {
+                                  const idx = EDITABLE_COLS.indexOf(prev);
+                                  if (idx === -1) return EDITABLE_COLS[0];
+                                  const newIdx = Math.max(0, Math.min(EDITABLE_COLS.length - 1, idx + dir));
+                                  return EDITABLE_COLS[newIdx];
+                                });
+                                return;
+                              }
+                              if (e.key !== 'Enter') return;
+                              const code = scanInput.trim();
+                              if (!code) { setTargetRow(idx); setShowBarangPicker(true); return; }
+                              // Try exact kode match
+                              const res = await fetch('/api/barang?q=' + encodeURIComponent(code));
+                              const list: BarangOption[] = await res.json();
+                              const exact = list.find(b => b.kode.toUpperCase() === code.toUpperCase());
+                              if (exact) {
+                                applyBarangToRow(idx, exact);
+                                setItems(prev => {
+                                  const next = ensureEmptyLastRow(prev);
+                                  setActiveRow(Math.min(idx + 1, next.length - 1));
+                                  return next;
+                                });
+                                setActiveCol(1);
+                                setNumberBuffer(null);
+                                setScanInput('');
+                              } else {
+                                setTargetRow(idx);
+                                setShowBarangPicker(true);
+                              }
+                            }}
+                            onClick={() => { setActiveRow(idx); setActiveCol(1); if (!isActiveRow) { setTargetRow(idx); setShowBarangPicker(true); } }}
+                            className="w-full px-2 py-0.5 bg-transparent text-gray-900 text-xs cursor-pointer outline-none" />
+                          {isActiveRow && row.barangId && (
                             <div className="absolute left-0 bottom-full flex gap-0 text-[10px] z-10 pointer-events-none mb-0.5">
                               <span className="bg-orange-500 text-white px-1 py-0.5">Stok: {row.stok}  Rak: {row.lokasi}</span>
                             </div>
@@ -905,26 +1218,51 @@ function JualBaseContent({ jenis }: JualBaseProps) {
 
                       <td className="border-r border-gray-200 px-2 py-0.5 text-xs">{row.satuan}</td>
 
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.qty} onChange={v => {
-                          const discRp = Math.round(v * row.harga * (row.discPct / 100));
-                          updateItem(idx, { qty: v, discRp });
-                        }} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 3 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.qty}
+                          bufferStr={isActiveRow && activeCol === 3 && numberBuffer?.row === idx && numberBuffer?.col === 3 ? numberBuffer.str : undefined}
+                          onChange={v => {
+                            const discRp = Math.round(v * row.harga * (row.discPct / 100));
+                            updateItem(idx, { qty: v, discRp });
+                          }}
+                          onNavigate={(dir) => {
+                            // Dispatch arrow key so global handler navigates
+                            setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0);
+                          }}
+                        />
                       </td>
 
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.harga} onChange={v => {
-                          const discRp = Math.round(row.qty * v * (row.discPct / 100));
-                          updateItem(idx, { harga: v, discRp });
-                        }} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 4 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.harga}
+                          bufferStr={isActiveRow && activeCol === 4 && numberBuffer?.row === idx && numberBuffer?.col === 4 ? numberBuffer.str : undefined}
+                          onChange={v => {
+                            const discRp = Math.round(row.qty * v * (row.discPct / 100));
+                            updateItem(idx, { harga: v, discRp });
+                          }}
+                          onNavigate={(dir) => {
+                            setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0);
+                          }}
+                        />
                       </td>
 
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.discPct} onChange={v => updateItem(idx, { discPct: v })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 5 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.discPct}
+                          bufferStr={isActiveRow && activeCol === 5 && numberBuffer?.row === idx && numberBuffer?.col === 5 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { discPct: v })}
+                          onNavigate={(dir) => {
+                            setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0);
+                          }}
+                        />
                       </td>
 
-                      <td className="border-r border-gray-200">
-                        <NumberCell value={row.discRp} onChange={v => updateItem(idx, { discRp: v })} />
+                      <td className={`border-r border-gray-200 ${isActiveRow && activeCol === 6 ? 'ring-2 ring-orange-400 bg-yellow-100' : ''}`}>
+                        <NumberCell value={row.discRp}
+                          bufferStr={isActiveRow && activeCol === 6 && numberBuffer?.row === idx && numberBuffer?.col === 6 ? numberBuffer.str : undefined}
+                          onChange={v => updateItem(idx, { discRp: v })}
+                          onNavigate={(dir) => {
+                            setTimeout(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: dir })), 0);
+                          }}
+                        />
                       </td>
 
                       <td className="border-r border-gray-200 px-1 text-right font-semibold text-green-900 text-xs">
@@ -955,10 +1293,14 @@ function JualBaseContent({ jenis }: JualBaseProps) {
                 <input type="checkbox" checked={cetakNota} onChange={e => setCetakNota(e.target.checked)} />
                 Print
               </label>
-              <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 flex-wrap max-w-xs">
-                <span>F1:ISIKAN KETERANGAN</span>
-                <span>||</span>
-                <span>F8:SIMPAN</span>
+              <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 flex-wrap max-w-md">
+                <span>↑↓←→ Navigasi</span>
+                <span>|</span>
+                <span>Enter: Pilih Barang / Edit</span>
+                <span>|</span>
+                <span>F8: SIMPAN</span>
+                <span>|</span>
+                <span>ESC: Batal</span>
               </div>
               <input value={keterangan} onChange={e => setKeterangan(e.target.value)}
                 placeholder="Keterangan..."

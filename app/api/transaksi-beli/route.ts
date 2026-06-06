@@ -106,6 +106,11 @@ export async function POST(req: NextRequest) {
           : item.qty;
       const updateOps: Record<string, unknown> = { $inc: { stok: stokTambah } };
       const hargaSet: Record<string, number> = {};
+      // Update harga beli per-pcs ke master barang
+      const hrgBeliPcs = item.satuanType === 'beli' && item.isi > 1
+        ? Math.round(item.hrgBeli / item.isi)
+        : item.hrgBeli;
+      if (hrgBeliPcs > 0) hargaSet.hargaBeli = hrgBeliPcs;
       if (item.hgaToko > 0)   hargaSet.hargaJualToko   = item.hgaToko;
       if (item.hrgPartai > 0) hargaSet.hargaJualPartai = item.hrgPartai;
       if (item.hrgCabang > 0) hargaSet.hargaJualCabang = item.hrgCabang;
