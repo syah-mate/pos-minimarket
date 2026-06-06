@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 4072",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --port 4072",
     "lint": "eslint",
-    "seed": "tsx --env-file=.env.local scripts/seed.ts"
+    "seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "deploy:prod": "bash ./deploy_prod.sh"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

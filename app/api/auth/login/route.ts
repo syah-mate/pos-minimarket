@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     await createSession({
-      userId: (user._id as string).toString(),
+      userId: user._id.toString(),
       username: user.username,
       name: user.name,
       role: user.role,
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       message: "Login berhasil",
       user: {
-        id: user._id,
+        id: user._id.toString(),
         name: user.name,
         username: user.username,
         role: user.role,
