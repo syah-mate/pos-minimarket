@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import ImportModal from '@/components/ImportModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -213,6 +214,7 @@ export default function PelangganPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [showImport, setShowImport] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -395,6 +397,15 @@ export default function PelangganPage() {
           Tambah
         </button>
         <button
+          onClick={() => setShowImport(true)}
+          className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium px-4 py-1.5 rounded shadow-sm"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          Import
+        </button>
+        <button
           onClick={() => selected && setModalMode('edit')}
           disabled={!selected}
           className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-xs font-medium px-4 py-1.5 rounded shadow-sm"
@@ -442,6 +453,16 @@ export default function PelangganPage() {
           onClose={() => setModalMode(null)}
           onSave={handleSave}
           saving={saving}
+        />
+      )}
+
+      {showImport && (
+        <ImportModal
+          title="IMPORT DATA PELANGGAN"
+          importUrl="/api/pelanggan/import"
+          templateUrl="/api/pelanggan/template"
+          onClose={() => setShowImport(false)}
+          onImportSuccess={() => { setShowImport(false); fetchData(); }}
         />
       )}
     </div>
