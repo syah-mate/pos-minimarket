@@ -4,6 +4,46 @@ import connectDB from "@/lib/db";
 import User from "@/models/User";
 import { createSession } from "@/lib/session";
 
+// ── Simple in-memory rate limiter ──────────────────────────────────────────
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_ATTEMPTS_PER_WINDOW = 5;
+
+const rateLimitMap = new Map<
+  string,
+  { count: number; resetAt: number }
+>();
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+
+  // Clean up expired entries periodically
+  if (entry && now > entry.resetAt) {
+    rateLimitMap.delete(key);
+  }
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true; // allowed
+  }
+
+  if (entry.count >= MAX_ATTEMPTS_PER_WINDOW) {
+    return false; // blocked
+  }
+
+  entry.count++;
+  return true; // allowed
+}
+
+// Clean up old entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(key);
+  }
+}, 5 * 60 * 1000);
+// ────────────────────────────────────────────────────────────────────────────
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -13,6 +53,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { message: "Username dan password wajib diisi" },
         { status: 400 }
+      );
+    }
+
+    // Rate limit: key = ip + username (lowercased)
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+      request.headers.get("x-real-ip") ??
+      "unknown";
+    const rateLimitKey = `${ip}:${username.toLowerCase().trim()}`;
+
+    if (!checkRateLimit(rateLimitKey)) {
+      return NextResponse.json(
+        { message: "Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit." },
+        { status: 429 }
       );
     }
 
@@ -57,6 +111,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         username: user.username,
         role: user.role,
+        mustChangePassword: user.mustChangePassword ?? false,
       },
     });
   } catch (error) {

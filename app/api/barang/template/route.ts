@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { requireRole } from "@/lib/authz";
 import * as XLSX from "xlsx";
 
 // Column headers & sample row matching BarangInput fields
@@ -20,8 +20,8 @@ const SAMPLE = [
 ];
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
 
   // Build workbook
   const wb = XLSX.utils.book_new();

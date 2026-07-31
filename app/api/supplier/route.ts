@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Supplier from '@/models/Supplier';
+import { requireRole } from '@/lib/authz';
 
 export async function GET(req: NextRequest) {
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const q = req.nextUrl.searchParams.get('q') ?? '';
   const filter = q
@@ -20,6 +24,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const body = await req.json();
   try {

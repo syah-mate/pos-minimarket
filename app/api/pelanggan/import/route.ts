@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { requireRole } from "@/lib/authz";
 import connectDB from "@/lib/db";
 import Pelanggan from "@/models/Pelanggan";
 import * as XLSX from "xlsx";
@@ -55,8 +55,8 @@ function parseRow(row: Record<string, unknown>) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
 
   try {
     const contentType = request.headers.get("content-type") ?? "";

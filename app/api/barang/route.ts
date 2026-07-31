@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Barang from "@/models/Barang";
-import { getSession } from "@/lib/session";
+import { requireRole } from "@/lib/authz";
 
 export async function GET(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
 
   await connectDB();
   const q = request.nextUrl.searchParams.get("q") ?? "";
@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
 
   try {
     await connectDB();

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import TransaksiBeli from '@/models/TransaksiBeli';
 import Barang from '@/models/Barang';
 import Supplier from '@/models/Supplier';
+import { requireRole } from '@/lib/authz';
+
+const MAX_RETRY_REFNO = 3;
 
 async function generateRefNo(tanggal: Date): Promise<string> {
   const dd = String(tanggal.getDate()).padStart(2, '0');
@@ -15,6 +19,9 @@ async function generateRefNo(tanggal: Date): Promise<string> {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { searchParams } = new URL(req.url);
 
@@ -53,79 +60,108 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
-  try {
-    const body = await req.json();
-    const {
-      items = [],
-      updateHargaJual,
-      tanggal,
-      supplierId,
-      pembayaran,
-      grandTotal,
-      disc,
-      ppn,
-      subtotal,
-      ...rest
-    } = body;
+  const body = await req.json();
+  const {
+    items = [],
+    updateHargaJual,
+    tanggal,
+    supplierId,
+    pembayaran,
+    grandTotal,
+    disc,
+    ppn,
+    subtotal,
+    ...rest
+  } = body;
 
-    const tanggalDate = tanggal ? new Date(tanggal) : new Date();
-    const refNo: string = body.refNo || (await generateRefNo(tanggalDate));
+  const tanggalDate = tanggal ? new Date(tanggal) : new Date();
 
-    // Validate refNo uniqueness
-    const existing = await TransaksiBeli.findOne({ refNo });
-    if (existing) {
-      return NextResponse.json({ error: `No. Faktur ${refNo} sudah ada.` }, { status: 400 });
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < MAX_RETRY_REFNO; attempt++) {
+    const mongoSession = await mongoose.startSession();
+    try {
+      const result = await mongoSession.withTransaction(async (session) => {
+        const refNo: string = body.refNo || (await generateRefNo(tanggalDate));
+
+        const existing = await TransaksiBeli.findOne({ refNo }).session(session);
+        if (existing) {
+          throw { code: 11000, keyPattern: { refNo: 1 } };
+        }
+
+        const lunas = pembayaran === 'Cash' ? grandTotal : 0;
+        const hutang = pembayaran !== 'Cash' ? grandTotal : 0;
+
+        const [transaksi] = await TransaksiBeli.create([{
+          ...rest,
+          refNo,
+          tanggal: tanggalDate,
+          supplierId: supplierId || '',
+          pembayaran,
+          grandTotal: grandTotal || 0,
+          disc: disc || 0,
+          ppn: ppn || 0,
+          subtotal: subtotal || 0,
+          lunas,
+          hutang,
+          items,
+          updateHargaJual: updateHargaJual ?? false,
+        }], { session });
+
+        // Update stok barang
+        for (const item of items) {
+          if (!item.barangId) continue;
+          const stokTambah =
+            item.satuanType === 'beli'
+              ? item.qty * (item.isi || 1)
+              : item.qty;
+          const updateOps: Record<string, unknown> = { $inc: { stok: stokTambah } };
+          const hargaSet: Record<string, number> = {};
+          // Update harga beli per-pcs ke master barang
+          const hrgBeliPcs = item.satuanType === 'beli' && item.isi > 1
+            ? Math.round(item.hrgBeli / item.isi)
+            : item.hrgBeli;
+          if (hrgBeliPcs > 0) hargaSet.hargaBeli = hrgBeliPcs;
+          if (item.hgaToko > 0)   hargaSet.hargaJualToko   = item.hgaToko;
+          if (item.hrgPartai > 0) hargaSet.hargaJualPartai = item.hrgPartai;
+          if (item.hrgCabang > 0) hargaSet.hargaJualCabang = item.hrgCabang;
+          if (Object.keys(hargaSet).length > 0) updateOps.$set = hargaSet;
+          await Barang.findByIdAndUpdate(item.barangId, updateOps, { session });
+        }
+
+        // Update saldo hutang supplier jika Tempo
+        if (pembayaran === 'Tempo' && supplierId && grandTotal > 0) {
+          await Supplier.findByIdAndUpdate(
+            supplierId,
+            { $inc: { saldoHutang: grandTotal } },
+            { session }
+          );
+        }
+
+        return transaksi;
+      });
+
+      return NextResponse.json(result, { status: 201 });
+    } catch (err: unknown) {
+      lastError = err;
+      const isMongoErr = (err as { code?: number; keyPattern?: Record<string, unknown> });
+      if (
+        isMongoErr?.code === 11000 &&
+        isMongoErr?.keyPattern &&
+        'refNo' in (isMongoErr.keyPattern || {})
+      ) {
+        if (attempt < MAX_RETRY_REFNO - 1) continue;
+      }
+      const message = err instanceof Error ? err.message : 'Server error';
+      return NextResponse.json({ error: message }, { status: 500 });
+    } finally {
+      await mongoSession.endSession();
     }
-
-    const lunas = pembayaran === 'Cash' ? grandTotal : 0;
-    const hutang = pembayaran !== 'Cash' ? grandTotal : 0;
-
-    const transaksi = await TransaksiBeli.create({
-      ...rest,
-      refNo,
-      tanggal: tanggalDate,
-      supplierId: supplierId || '',
-      pembayaran,
-      grandTotal: grandTotal || 0,
-      disc: disc || 0,
-      ppn: ppn || 0,
-      subtotal: subtotal || 0,
-      lunas,
-      hutang,
-      items,
-      updateHargaJual: updateHargaJual ?? false,
-    });
-
-    // Update stok barang
-    for (const item of items) {
-      if (!item.barangId) continue;
-      const stokTambah =
-        item.satuanType === 'beli'
-          ? item.qty * (item.isi || 1)
-          : item.qty;
-      const updateOps: Record<string, unknown> = { $inc: { stok: stokTambah } };
-      const hargaSet: Record<string, number> = {};
-      // Update harga beli per-pcs ke master barang
-      const hrgBeliPcs = item.satuanType === 'beli' && item.isi > 1
-        ? Math.round(item.hrgBeli / item.isi)
-        : item.hrgBeli;
-      if (hrgBeliPcs > 0) hargaSet.hargaBeli = hrgBeliPcs;
-      if (item.hgaToko > 0)   hargaSet.hargaJualToko   = item.hgaToko;
-      if (item.hrgPartai > 0) hargaSet.hargaJualPartai = item.hrgPartai;
-      if (item.hrgCabang > 0) hargaSet.hargaJualCabang = item.hrgCabang;
-      if (Object.keys(hargaSet).length > 0) updateOps.$set = hargaSet;
-      await Barang.findByIdAndUpdate(item.barangId, updateOps);
-    }
-
-    // Update saldo hutang supplier jika Tempo
-    if (pembayaran === 'Tempo' && supplierId && grandTotal > 0) {
-      await Supplier.findByIdAndUpdate(supplierId, { $inc: { saldoHutang: grandTotal } });
-    }
-
-    return NextResponse.json(transaksi, { status: 201 });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Server error';
-    return NextResponse.json({ error: message }, { status: 500 });
   }
+
+  const message = lastError instanceof Error ? lastError.message : 'Server error';
+  return NextResponse.json({ error: message }, { status: 500 });
 }

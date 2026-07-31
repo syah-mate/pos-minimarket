@@ -4,11 +4,15 @@ import BayarHutang from '@/models/BayarHutang';
 import TransaksiBeli from '@/models/TransaksiBeli';
 import Supplier from '@/models/Supplier';
 import Kas from '@/models/Kas';
+import { requireRole } from '@/lib/authz';
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { id } = await params;
   const doc = await BayarHutang.findById(id).lean();
@@ -20,6 +24,9 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { id } = await params;
   try {
@@ -85,6 +92,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { id } = await params;
   try {

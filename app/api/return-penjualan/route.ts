@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import ReturnPenjualan from '@/models/ReturnPenjualan';
 import Barang from '@/models/Barang';
 import Pelanggan from '@/models/Pelanggan';
+import { requireRole } from '@/lib/authz';
+
+const MAX_RETRY_REFNO = 3;
 
 async function generateRefNo(tanggal: Date): Promise<string> {
   const dd = String(tanggal.getDate()).padStart(2, '0');
@@ -15,6 +19,9 @@ async function generateRefNo(tanggal: Date): Promise<string> {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { searchParams } = new URL(req.url);
 
@@ -41,39 +48,66 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
-  try {
-    const body = await req.json();
-    const { items = [], pelangganId, tanggal, totalKembaliUang = 0, totalPotongPiutang = 0, totalRtr = 0, ...rest } = body;
+  const body = await req.json();
+  const { items = [], pelangganId, tanggal, totalKembaliUang = 0, totalPotongPiutang = 0, totalRtr = 0, ...rest } = body;
+  const tanggalDate = tanggal ? new Date(tanggal) : new Date();
 
-    const tanggalDate = tanggal ? new Date(tanggal) : new Date();
-    const refNo: string = body.refNo || (await generateRefNo(tanggalDate));
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < MAX_RETRY_REFNO; attempt++) {
+    const mongoSession = await mongoose.startSession();
+    try {
+      const result = await mongoSession.withTransaction(async (session) => {
+        const refNo: string = body.refNo || (await generateRefNo(tanggalDate));
 
-    const existing = await ReturnPenjualan.findOne({ refNo });
-    if (existing) {
-      return NextResponse.json({ error: `No. Faktur ${refNo} sudah ada.` }, { status: 400 });
+        const existing = await ReturnPenjualan.findOne({ refNo }).session(session);
+        if (existing) throw { code: 11000, keyPattern: { refNo: 1 } };
+
+        const [doc] = await ReturnPenjualan.create([{
+          ...rest, refNo, tanggal: tanggalDate, items,
+          pelangganId: pelangganId || '',
+          totalKembaliUang, totalPotongPiutang, totalRtr,
+        }], { session });
+
+        // Tambah stok barang (barang dikembalikan)
+        for (const item of items) {
+          if (!item.barangId || !item.qty) continue;
+          await Barang.findByIdAndUpdate(
+            item.barangId,
+            { $inc: { stok: item.qty } },
+            { session }
+          );
+        }
+
+        // Potong piutang pelanggan jika ada item potong_piutang
+        if (pelangganId && totalPotongPiutang > 0) {
+          await Pelanggan.findByIdAndUpdate(
+            pelangganId,
+            { $inc: { saldoPiutang: -totalPotongPiutang } },
+            { session }
+          );
+        }
+
+        return doc;
+      });
+
+      return NextResponse.json(result, { status: 201 });
+    } catch (err: unknown) {
+      lastError = err;
+      const isMongoErr = (err as { code?: number; keyPattern?: Record<string, unknown> });
+      if (isMongoErr?.code === 11000 && isMongoErr?.keyPattern && 'refNo' in (isMongoErr.keyPattern || {})) {
+        if (attempt < MAX_RETRY_REFNO - 1) continue;
+      }
+      const message = err instanceof Error ? err.message : 'Server error';
+      return NextResponse.json({ error: message }, { status: 500 });
+    } finally {
+      await mongoSession.endSession();
     }
-
-    const doc = await ReturnPenjualan.create({
-      ...rest, refNo, tanggal: tanggalDate, items,
-      pelangganId: pelangganId || '',
-      totalKembaliUang, totalPotongPiutang, totalRtr,
-    });
-
-    // Tambah stok barang (barang dikembalikan)
-    for (const item of items) {
-      if (!item.barangId || !item.qty) continue;
-      await Barang.findByIdAndUpdate(item.barangId, { $inc: { stok: item.qty } });
-    }
-
-    // Potong piutang pelanggan jika ada item potong_piutang
-    if (pelangganId && totalPotongPiutang > 0) {
-      await Pelanggan.findByIdAndUpdate(pelangganId, { $inc: { saldoPiutang: -totalPotongPiutang } });
-    }
-
-    return NextResponse.json(doc, { status: 201 });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Server error';
-    return NextResponse.json({ error: message }, { status: 500 });
   }
+
+  const message = lastError instanceof Error ? lastError.message : 'Server error';
+  return NextResponse.json({ error: message }, { status: 500 });
 }

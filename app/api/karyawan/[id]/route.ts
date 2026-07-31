@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Karyawan from '@/models/Karyawan';
+import { requireRole } from '@/lib/authz';
 
 interface Params { params: Promise<{ id: string }> }
 
 export async function PUT(req: NextRequest, { params }: Params) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { id } = await params;
   const body = await req.json();
@@ -19,6 +23,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { id } = await params;
   const deleted = await Karyawan.findByIdAndDelete(id);

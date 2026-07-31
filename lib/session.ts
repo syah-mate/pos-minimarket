@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "8h";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "2h"; // reduced from 8h — mitigasi isActive check tanpa query DB setiap request
 const COOKIE_NAME = "pos_session";
 
 if (!JWT_SECRET) {
@@ -36,7 +36,7 @@ export async function createSession(payload: SessionPayload): Promise<void> {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 8, // 8 jam
+    maxAge: 60 * 60 * 2, // 2 jam (sinkron dengan JWT_EXPIRES_IN)
   });
 }
 

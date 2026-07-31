@@ -17,6 +17,7 @@ interface MenuItem {
   colorKey?: string;
   icon: React.ReactNode;
   subItems?: SubMenuItem[];
+  allowedRoles?: string[]; // if undefined, visible to all roles
 }
 
 interface MenuGroup {
@@ -169,7 +170,7 @@ const TABS: NavTab[] = [
           { label: 'Pelanggan', href: '/dashboard/master/pelanggan', icon: <IconPelanggan /> },
           { label: 'Cabang',    href: '/dashboard/master/cabang',    icon: <IconCabang /> },
           { label: 'Supplier',  href: '/dashboard/master/supplier',  icon: <IconSupplier /> },
-          { label: 'Karyawan',  href: '/dashboard/master/karyawan',  icon: <IconKaryawan /> },
+          { label: 'Karyawan',  href: '/dashboard/master/karyawan',  icon: <IconKaryawan />, allowedRoles: ['admin'] },
           { label: 'Kas',       href: '/dashboard/master/kas',       icon: <IconKas /> },
         ],
       },
@@ -216,7 +217,7 @@ const TABS: NavTab[] = [
       {
         label: 'Tools',
         items: [
-          { label: 'Koreksi Stok', href: '/dashboard/back-office/koreksi-stok', icon: <IconKoreksiStok /> },
+          { label: 'Koreksi Stok', href: '/dashboard/back-office/koreksi-stok', icon: <IconKoreksiStok />, allowedRoles: ['admin'] },
         ],
       },
     ] },
@@ -337,7 +338,9 @@ export default function Navbar({ user }: NavbarProps) {
               <div className="flex flex-col">
                 {/* Buttons */}
                 <div className="flex items-start gap-0.5 px-2 pt-1.5 flex-1">
-                  {group.items.map((item) => {
+                  {group.items
+                    .filter(item => !item.allowedRoles || item.allowedRoles.includes(user.role))
+                    .map((item) => {
                     const colorKey = item.href ?? item.colorKey ?? '';
                     const isActiveItem = item.href
                       ? pathname.startsWith(item.href)

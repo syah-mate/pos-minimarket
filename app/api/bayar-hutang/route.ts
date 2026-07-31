@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import BayarHutang from '@/models/BayarHutang';
 import TransaksiBeli from '@/models/TransaksiBeli';
 import Supplier from '@/models/Supplier';
 import Kas from '@/models/Kas';
+import { requireRole } from '@/lib/authz';
+
+const MAX_RETRY_REFNO = 3;
 
 async function generateRefNo(tanggal: Date): Promise<string> {
   const dd = String(tanggal.getDate()).padStart(2, '0');
@@ -16,6 +20,9 @@ async function generateRefNo(tanggal: Date): Promise<string> {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { searchParams } = new URL(req.url);
 
@@ -40,59 +47,85 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
-  try {
-    const body = await req.json();
-    const {
-      tanggal,
-      supplierId,
-      kasId,
-      items = [],
-      totalBayar,
-      operator,
-      ...rest
-    } = body;
+  const body = await req.json();
+  const {
+    tanggal,
+    supplierId,
+    kasId,
+    items = [],
+    totalBayar,
+    operator,
+    ...rest
+  } = body;
+  const tanggalDate = tanggal ? new Date(tanggal) : new Date();
 
-    const tanggalDate = tanggal ? new Date(tanggal) : new Date();
-    const refNo: string = body.refNo || (await generateRefNo(tanggalDate));
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < MAX_RETRY_REFNO; attempt++) {
+    const mongoSession = await mongoose.startSession();
+    try {
+      const result = await mongoSession.withTransaction(async (session) => {
+        const refNo: string = body.refNo || (await generateRefNo(tanggalDate));
 
-    const existing = await BayarHutang.findOne({ refNo });
-    if (existing) {
-      return NextResponse.json({ error: `No. Ref ${refNo} sudah ada.` }, { status: 400 });
-    }
+        const existing = await BayarHutang.findOne({ refNo }).session(session);
+        if (existing) throw { code: 11000, keyPattern: { refNo: 1 } };
 
-    // Create the record
-    const doc = await BayarHutang.create({
-      ...rest, refNo, tanggal: tanggalDate, supplierId, kasId, items, totalBayar, operator,
-    });
+        const [doc] = await BayarHutang.create([{
+          ...rest, refNo, tanggal: tanggalDate, supplierId, kasId, items, totalBayar, operator,
+        }], { session });
 
-    // Update each TransaksiBeli item
-    for (const item of items) {
-      if (!item.angsuran || item.angsuran <= 0) continue;
-      const beli = await TransaksiBeli.findById(item.transaksiBeliId);
-      if (!beli) continue;
-      beli.lunas = (beli.lunas || 0) + item.angsuran;
-      beli.hutang = Math.max(0, (beli.hutang || 0) - item.angsuran);
-      if (beli.hutang <= 0) {
-        beli.lunasTanggal = tanggalDate;
-        beli.lunasOperator = operator || '';
+        // Update each TransaksiBeli item
+        for (const item of items) {
+          if (!item.angsuran || item.angsuran <= 0) continue;
+          const beli = await TransaksiBeli.findById(item.transaksiBeliId).session(session);
+          if (!beli) continue;
+          beli.lunas = (beli.lunas || 0) + item.angsuran;
+          beli.hutang = Math.max(0, (beli.hutang || 0) - item.angsuran);
+          if (beli.hutang <= 0) {
+            beli.lunasTanggal = tanggalDate;
+            beli.lunasOperator = operator || '';
+          }
+          await beli.save({ session });
+        }
+
+        // Decrease supplier saldoHutang
+        if (supplierId && totalBayar > 0) {
+          await Supplier.findByIdAndUpdate(
+            supplierId,
+            { $inc: { saldoHutang: -totalBayar } },
+            { session }
+          );
+        }
+
+        // Decrease kas saldo
+        if (kasId && totalBayar > 0) {
+          await Kas.findByIdAndUpdate(
+            kasId,
+            { $inc: { saldo: -totalBayar } },
+            { session }
+          );
+        }
+
+        return doc;
+      });
+
+      return NextResponse.json(result, { status: 201 });
+    } catch (err: unknown) {
+      lastError = err;
+      const isMongoErr = (err as { code?: number; keyPattern?: Record<string, unknown> });
+      if (isMongoErr?.code === 11000 && isMongoErr?.keyPattern && 'refNo' in (isMongoErr.keyPattern || {})) {
+        if (attempt < MAX_RETRY_REFNO - 1) continue;
       }
-      await beli.save();
+      const msg = err instanceof Error ? err.message : 'Server error';
+      return NextResponse.json({ error: msg }, { status: 500 });
+    } finally {
+      await mongoSession.endSession();
     }
-
-    // Decrease supplier saldoHutang
-    if (supplierId && totalBayar > 0) {
-      await Supplier.findByIdAndUpdate(supplierId, { $inc: { saldoHutang: -totalBayar } });
-    }
-
-    // Decrease kas saldo
-    if (kasId && totalBayar > 0) {
-      await Kas.findByIdAndUpdate(kasId, { $inc: { saldo: -totalBayar } });
-    }
-
-    return NextResponse.json(doc, { status: 201 });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Server error';
-    return NextResponse.json({ error: msg }, { status: 500 });
   }
+
+  const msg = lastError instanceof Error ? lastError.message : 'Server error';
+  return NextResponse.json({ error: msg }, { status: 500 });
 }

@@ -3,11 +3,15 @@ import connectDB from '@/lib/db';
 import ReturnPenjualan from '@/models/ReturnPenjualan';
 import Barang from '@/models/Barang';
 import Pelanggan from '@/models/Pelanggan';
+import { requireRole } from '@/lib/authz';
 
 export async function GET(
   _: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireRole(['admin', 'kasir']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { id } = await params;
   const doc = await ReturnPenjualan.findById(id).lean();
@@ -19,6 +23,9 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { id } = await params;
   const old = await ReturnPenjualan.findById(id);
@@ -56,6 +63,9 @@ export async function DELETE(
   _: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) return auth.response;
+
   await connectDB();
   const { id } = await params;
   const doc = await ReturnPenjualan.findById(id);
