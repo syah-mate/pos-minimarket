@@ -2,15 +2,53 @@
   "name": "pos-minimarket",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev --port 4072",
     "build": "next build",
     "start": "next start --port 4072",
     "lint": "eslint",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
-    "deploy:prod": "bash ./deploy_prod.sh"
+    "deploy:prod": "bash ./deploy_prod.sh",
+    "electron": "electron .",
+    "electron:dev": "concurrently -k -n next,electron \"next dev --port 4072\" \"wait-on http://localhost:4072 && electron .\"",
+    "electron:build": "next build && node scripts/prepare-standalone.js && electron-builder",
+    "electron:pack": "next build && node scripts/prepare-standalone.js && electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.lentera.posminimarket",
+    "productName": "POS Minimarket",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone"
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/usb/**",
+      "**/node_modules/@node-escpos/**"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
+    "@node-escpos/core": "^0.6.0",
+    "@node-escpos/usb-adapter": "^0.3.0",
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.2",
@@ -20,6 +58,12 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.0",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "wait-on": "^8.0.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
