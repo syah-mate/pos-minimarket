@@ -20,8 +20,10 @@
     "appId": "com.lentera.posminimarket",
     "productName": "POS Minimarket",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "icon": "build/icon.png",
     "files": [
       "electron/**/*",
       "package.json"
