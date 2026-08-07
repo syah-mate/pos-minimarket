@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
 import ImportModal from '@/components/ImportModal';
 
@@ -100,6 +101,7 @@ function barangToForm(b: IBarang): BarangInput {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function BarangPage() {
+  const router = useRouter();
   const [list, setList] = useState<IBarang[]>([]);
   const [filtered, setFiltered] = useState<IBarang[]>([]);
   const [selected, setSelected] = useState<IBarang | null>(null);
@@ -117,6 +119,11 @@ export default function BarangPage() {
       const res = await fetch('/api/barang');
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        // Auth errors: redirect to login (session already cleared by backend)
+        if (res.status === 403 && (body.message === 'Akun telah dinonaktifkan' || body.message === 'Sesi tidak valid. Silakan login kembali.')) {
+          router.push('/login');
+          return;
+        }
         throw new Error(body.message || `HTTP ${res.status}: Gagal memuat data`);
       }
       const data = await res.json();
@@ -127,7 +134,7 @@ export default function BarangPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

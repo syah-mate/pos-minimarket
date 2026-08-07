@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, SessionPayload } from "@/lib/session";
+import { getSession, deleteSession, SessionPayload } from "@/lib/session";
 import connectDB from "@/lib/db";
 import User from "@/models/User";
 
@@ -63,10 +63,16 @@ export async function requireRole(
     await connectDB();
     const user = await User.findById(session.userId).select("isActive").lean();
     if (!user || !user.isActive) {
+      // Hapus session cookie agar user dipaksa login ulang
+      // (menghindari loop error karena cookie stale dengan userId lama)
+      await deleteSession();
+      const msg = !user
+        ? "Sesi tidak valid. Silakan login kembali."
+        : "Akun telah dinonaktifkan";
       return {
         ok: false,
         response: NextResponse.json(
-          { message: "Akun telah dinonaktifkan" },
+          { message: msg },
           { status: 403 }
         ),
       };
