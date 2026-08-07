@@ -7,20 +7,26 @@ export async function GET(request: NextRequest) {
   const auth = await requireRole(['admin', 'kasir']);
   if (!auth.ok) return auth.response;
 
-  await connectDB();
-  const q = request.nextUrl.searchParams.get("q") ?? "";
-  const query = q
-    ? {
-        $or: [
-          { nama: { $regex: q, $options: "i" } },
-          { kode: { $regex: q, $options: "i" } },
-          { kategori: { $regex: q, $options: "i" } },
-        ],
-      }
-    : {};
+  try {
+    await connectDB();
+    const q = request.nextUrl.searchParams.get("q") ?? "";
+    const query = q
+      ? {
+          $or: [
+            { nama: { $regex: q, $options: "i" } },
+            { kode: { $regex: q, $options: "i" } },
+            { kategori: { $regex: q, $options: "i" } },
+          ],
+        }
+      : {};
 
-  const data = await Barang.find(query).sort({ nama: 1 }).lean();
-  return NextResponse.json(data);
+    const data = await Barang.find(query).sort({ nama: 1 }).lean();
+    return NextResponse.json(data);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Gagal memuat data barang";
+    console.error("GET /api/barang error:", msg);
+    return NextResponse.json({ message: msg }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {

@@ -115,12 +115,15 @@ export default function BarangPage() {
     setError('');
     try {
       const res = await fetch('/api/barang');
-      if (!res.ok) throw new Error('Gagal memuat data');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${res.status}: Gagal memuat data`);
+      }
       const data = await res.json();
       setList(data);
       setFiltered(data);
-    } catch {
-      setError('Gagal memuat data. Pastikan koneksi database aktif.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal memuat data. Pastikan koneksi database aktif.');
     } finally {
       setLoading(false);
     }
