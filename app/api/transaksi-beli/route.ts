@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
   const barangId = searchParams.get('barangId') ?? '';
   const supplierId = searchParams.get('supplierId') ?? '';
   const hutangOnly = searchParams.get('hutangOnly') === '1';
+  const tglDari = searchParams.get('tglDari') ?? '';
+  const tglSampai = searchParams.get('tglSampai') ?? '';
+  const tipe = searchParams.get('tipe') ?? ''; // 'langsung' | 'po'
   const filter: Record<string, unknown> = {};
   if (q) {
     filter.$or = [
@@ -54,6 +57,18 @@ export async function GET(req: NextRequest) {
   if (hutangOnly) {
     filter.pembayaran = 'Tempo';
     filter.hutang = { $gt: 0 };
+  }
+  // Date range filter
+  if (tglDari || tglSampai) {
+    filter.tanggal = {} as Record<string, Date>;
+    if (tglDari) (filter.tanggal as Record<string, Date>).$gte = new Date(tglDari);
+    if (tglSampai) (filter.tanggal as Record<string, Date>).$lte = new Date(tglSampai + 'T23:59:59.999Z');
+  }
+  // Tipe filter: langsung = Cash, po = Tempo
+  if (tipe === 'langsung') {
+    filter.pembayaran = 'Cash';
+  } else if (tipe === 'po') {
+    filter.pembayaran = 'Tempo';
   }
   const data = await TransaksiBeli.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
   return NextResponse.json(data);
