@@ -130,7 +130,7 @@ export default function BarangPage() {
       setList(data);
       setFiltered(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat data. Pastikan koneksi database aktif.');
+      setError(err instanceof Error ? err.message : 'Gagal memuat data. Pastikan koneksi database aktif yaaaaa.');
     } finally {
       setLoading(false);
     }
