@@ -14,6 +14,7 @@ export interface SessionPayload {
   username: string;
   name: string;
   role: string;
+  menuPermissions: string[];
 }
 
 export function signToken(payload: SessionPayload): string {
@@ -44,7 +45,10 @@ export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  return verifyToken(token);
+  const payload = verifyToken(token);
+  if (!payload) return null;
+  // Backward compatibility: ensure menuPermissions is always an array
+  return { ...payload, menuPermissions: payload.menuPermissions ?? [] };
 }
 
 export async function deleteSession(): Promise<void> {

@@ -68,7 +68,7 @@ export async function requireRole(
       await deleteSession();
       const msg = !user
         ? "Sesi tidak valid. Silakan login kembali."
-        : "Akun telah dinonaktifkan yaa";
+        : "Akun telah dinonaktifkan";
       return {
         ok: false,
         response: NextResponse.json(

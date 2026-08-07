@@ -15,7 +15,9 @@ const UserSchema = new mongoose.Schema(
     username: { type: String, required: true, unique: true, trim: true, lowercase: true },
     password: { type: String, required: true, minlength: 6 },
     role: { type: String, enum: ["admin", "kasir"], default: "kasir" },
+    menuPermissions: { type: [String], default: [] },
     isActive: { type: Boolean, default: true },
+    mustChangePassword: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
@@ -34,6 +36,27 @@ async function seed() {
       username: "admin",
       password: "admin123",
       role: "admin",
+      menuPermissions: [
+        '/dashboard/master/barang',
+        '/dashboard/master/jasa',
+        '/dashboard/master/pelanggan',
+        '/dashboard/master/cabang',
+        '/dashboard/master/supplier',
+        '/dashboard/master/karyawan',
+        '/dashboard/master/kas',
+        '/dashboard/transaksi/beli',
+        '/dashboard/transaksi/jual',
+        '/dashboard/transaksi/return-pembelian',
+        '/dashboard/transaksi/terima-return',
+        '/dashboard/transaksi/return-penjualan',
+        '/dashboard/transaksi/bayar-hutang',
+        '/dashboard/transaksi/terima-piutang',
+        '/dashboard/back-office/koreksi-stok',
+        '/dashboard/laporan/pembelian',
+        '/dashboard/laporan/penjualan',
+        '/dashboard/laporan/stok',
+        '/dashboard/laporan/laba-rugi',
+      ],
     },
   ];
 

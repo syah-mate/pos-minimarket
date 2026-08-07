@@ -103,7 +103,9 @@ function barangToForm(b: IBarang): BarangInput {
 export default function BarangPage() {
   const router = useRouter();
   const [list, setList] = useState<IBarang[]>([]);
-  const [filtered, setFiltered] = useState<IBarang[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [selected, setSelected] = useState<IBarang | null>(null);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,44 +114,51 @@ export default function BarangPage() {
   const [error, setError] = useState('');
   const [showImport, setShowImport] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const LIMIT = 50;
+
+  const fetchData = useCallback(async (p = 1, q = search) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/barang');
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      params.set('page', String(p));
+      params.set('limit', String(LIMIT));
+
+      const res = await fetch(`/api/barang?${params.toString()}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        // Auth errors: redirect to login (session already cleared by backend)
         if (res.status === 403 && (body.message === 'Akun telah dinonaktifkan' || body.message === 'Sesi tidak valid. Silakan login kembali.')) {
           router.push('/login');
           return;
         }
         throw new Error(body.message || `HTTP ${res.status}: Gagal memuat data`);
       }
-      const data = await res.json();
-      setList(data);
-      setFiltered(data);
+      const json = await res.json();
+      setList(json.data);
+      setTotal(json.total);
+      setPage(json.page);
+      setTotalPages(json.totalPages);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat data. Pastikan koneksi database aktif yaaaaa.');
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, search]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchData(1, ''); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    const q = search.toLowerCase();
-    setFiltered(
-      list.filter(
-        (b) =>
-          b.nama.toLowerCase().includes(q) ||
-          b.kode.toLowerCase().includes(q) ||
-          b.kategori.toLowerCase().includes(q) ||
-          b.supplier.toLowerCase().includes(q)
-      )
-    );
-  }, [search, list]);
+  function handleSearch(val: string) {
+    setSearch(val);
+    // Reset ke page 1 tiap ganti pencarian
+    fetchData(1, val);
+  }
+
+  function goToPage(p: number) {
+    if (p < 1 || p > totalPages || p === page) return;
+    setSelected(null);
+    fetchData(p, search);
+  }
 
   async function handleSave(formData: BarangInput) {
     setSaving(true);
@@ -166,7 +175,7 @@ export default function BarangPage() {
       if (!res.ok) throw new Error(data.message ?? 'Gagal menyimpan');
       setModalMode(null);
       setSelected(null);
-      await fetchData();
+      await fetchData(page, search);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal menyimpan data');
     } finally {
@@ -182,7 +191,7 @@ export default function BarangPage() {
       const res = await fetch(`/api/barang/${selected._id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Gagal menghapus');
       setSelected(null);
-      await fetchData();
+      await fetchData(page, search);
     } catch {
       setError('Gagal menghapus data');
     }
@@ -190,6 +199,16 @@ export default function BarangPage() {
 
   const initialFormData: BarangInput =
     modalMode === 'edit' && selected ? barangToForm(selected) : EMPTY_FORM;
+
+  // Generate page number buttons
+  const pageButtons: number[] = [];
+  const maxVisible = 5;
+  let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+  if (endPage - startPage + 1 < maxVisible) {
+    startPage = Math.max(1, endPage - maxVisible + 1);
+  }
+  for (let i = startPage; i <= endPage; i++) pageButtons.push(i);
 
   return (
     <div
@@ -207,11 +226,11 @@ export default function BarangPage() {
         <input
           type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearch(e.target.value)}
           placeholder="Nama, kode, kategori, supplier..."
           className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-72"
         />
-        <span className="text-xs text-gray-400">{filtered.length} barang</span>
+        <span className="text-xs text-gray-400">{total} barang</span>
         {error && (
           <span className="text-red-500 text-xs ml-auto bg-red-50 border border-red-200 px-2 py-1 rounded">
             {error}
@@ -248,14 +267,14 @@ export default function BarangPage() {
                   </div>
                 </td>
               </tr>
-            ) : filtered.length === 0 ? (
+            ) : list.length === 0 ? (
               <tr>
                 <td colSpan={TABLE_COLS.length + 1} className="text-center py-12 text-gray-400 italic">
                   {search ? 'Tidak ada barang yang sesuai pencarian.' : 'Belum ada data barang. Klik Tambah untuk menambahkan.'}
                 </td>
               </tr>
             ) : (
-              filtered.map((b, i) => {
+              list.map((b, i) => {
                 const isSelected = selected?._id === b._id;
                 const status = stokStatus(b.stok, b.stokMinimum, b.stokMaksimum);
                 return (
@@ -312,7 +331,7 @@ export default function BarangPage() {
       </div>
 
       {/* Action bar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-200 bg-gray-50 shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-200 bg-gray-50 shrink-0 flex-wrap">
         <button
           onClick={() => { setSelected(null); setModalMode('add'); }}
           className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium px-4 py-1.5 rounded shadow-sm"
@@ -353,20 +372,59 @@ export default function BarangPage() {
         </button>
 
         {selected && (
-          <span className="ml-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded">
+          <span className="mx-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded">
             Dipilih: <strong>{selected.nama}</strong>
           </span>
         )}
 
-        <div className="ml-auto">
+        {/* Pagination */}
+        <div className="ml-auto flex items-center gap-1">
+          <span className="text-xs text-gray-500 mr-1">
+            {total > 0 ? `${(page - 1) * LIMIT + 1}-${Math.min(page * LIMIT, total)} dari ${total}` : '0 data'}
+          </span>
           <button
-            onClick={fetchData}
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+            onClick={() => goToPage(1)}
+            disabled={page <= 1}
+            className="px-1.5 py-0.5 text-xs border rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Awal"
+          >««</button>
+          <button
+            onClick={() => goToPage(page - 1)}
+            disabled={page <= 1}
+            className="px-1.5 py-0.5 text-xs border rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Sebelumnya"
+          >«</button>
+          {pageButtons.map(p => (
+            <button
+              key={p}
+              onClick={() => goToPage(p)}
+              className={`px-2 py-0.5 text-xs border rounded ${
+                p === page
+                  ? 'bg-blue-600 text-white border-blue-600 font-bold'
+                  : 'hover:bg-gray-200'
+              }`}
+            >{p}</button>
+          ))}
+          <button
+            onClick={() => goToPage(page + 1)}
+            disabled={page >= totalPages}
+            className="px-1.5 py-0.5 text-xs border rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Berikutnya"
+          >»</button>
+          <button
+            onClick={() => goToPage(totalPages)}
+            disabled={page >= totalPages}
+            className="px-1.5 py-0.5 text-xs border rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Akhir"
+          >»»</button>
+          <button
+            onClick={() => fetchData(page, search)}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors ml-2"
+            title="Refresh"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Refresh
           </button>
         </div>
       </div>

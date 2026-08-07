@@ -9,7 +9,12 @@ export async function GET(request: NextRequest) {
 
   try {
     await connectDB();
-    const q = request.nextUrl.searchParams.get("q") ?? "";
+    const url = request.nextUrl;
+    const q = url.searchParams.get("q") ?? "";
+    const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") ?? "50", 10) || 50));
+    const skip = (page - 1) * limit;
+
     const query = q
       ? {
           $or: [
@@ -20,8 +25,17 @@ export async function GET(request: NextRequest) {
         }
       : {};
 
-    const data = await Barang.find(query).sort({ nama: 1 }).lean();
-    return NextResponse.json(data);
+    const [data, total] = await Promise.all([
+      Barang.find(query).sort({ nama: 1 }).skip(skip).limit(limit).lean(),
+      Barang.countDocuments(query),
+    ]);
+
+    return NextResponse.json({
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Gagal memuat data barang";
     console.error("GET /api/barang error:", msg);

@@ -67,8 +67,9 @@ function BarangPicker({ initialQ = '', onSelect, onClose }: {
 
   async function fetchList(search: string) {
     setLoading(true);
-    const res = await fetch(`/api/barang?q=${encodeURIComponent(search)}`);
-    setList(await res.json());
+    const res = await fetch(`/api/barang?q=${encodeURIComponent(search)}&limit=100`);
+    const json = await res.json();
+    setList(json.data || []);
     setLoading(false);
   }
 

@@ -59,6 +59,12 @@ const BarangSchema = new Schema<IBarang>(
   { timestamps: true }
 );
 
+// ─── Indexes untuk performa pencarian & pagination ─────────────────────────
+BarangSchema.index({ nama: 1 });
+BarangSchema.index({ kode: 1 });
+BarangSchema.index({ kategori: 1 });
+BarangSchema.index({ supplier: 1 });
+
 const Barang: Model<IBarang> =
   mongoose.models.Barang ?? mongoose.model<IBarang>("Barang", BarangSchema);
 

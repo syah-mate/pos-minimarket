@@ -139,6 +139,14 @@ function IconKoreksiStok() {
   );
 }
 
+function IconUsers() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+    </svg>
+  );
+}
+
 function IconBayarHutang() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-full h-full">
@@ -251,6 +259,7 @@ const TABS: NavTab[] = [
         label: 'Tools',
         items: [
           { label: 'Koreksi Stok', href: '/dashboard/back-office/koreksi-stok', icon: <IconKoreksiStok />, allowedRoles: ['admin'] },
+          { label: 'Users',       href: '/dashboard/back-office/users',        icon: <IconUsers />,        allowedRoles: ['admin'] },
         ],
       },
     ] },
@@ -309,6 +318,7 @@ const ICON_COLORS: Record<string, string> = {
   '/dashboard/transaksi/bayar-hutang':          'text-red-700',
   '/dashboard/transaksi/terima-piutang':        'text-teal-600',
   '/dashboard/back-office/koreksi-stok':        'text-indigo-600',
+  '/dashboard/back-office/users':               'text-violet-600',
   '/dashboard/laporan/pembelian':               'text-blue-700',
   '/dashboard/laporan/pembelian/by-barang':     'text-blue-700',
   '/dashboard/laporan/pembelian/by-periode':    'text-blue-700',
@@ -333,7 +343,7 @@ function getTabFromPath(pathname: string): TabId {
 // ── Props ──────────────────────────────────────────────────────────────────
 
 interface NavbarProps {
-  user: { name: string; role: string };
+  user: { name: string; role: string; menuPermissions: string[] };
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -360,6 +370,14 @@ export default function Navbar({ user }: NavbarProps) {
   }, []);
 
   const currentTab = TABS.find((t) => t.id === activeTab)!;
+
+  // Check if a menu item href is permitted for the user
+  function isMenuPermitted(href: string | undefined): boolean {
+    if (user.role === 'admin') return true; // admin sees everything
+    if (!href) return true;
+    if (!user.menuPermissions || user.menuPermissions.length === 0) return false;
+    return user.menuPermissions.includes(href);
+  }
 
   return (
     <div className="select-none shadow-md">
@@ -416,7 +434,16 @@ export default function Navbar({ user }: NavbarProps) {
                 {/* Buttons */}
                 <div className="flex items-start gap-0.5 px-2 pt-1.5 flex-1">
                   {group.items
-                    .filter(item => !item.allowedRoles || item.allowedRoles.includes(user.role))
+                    .filter(item => {
+                      // Role check
+                      if (item.allowedRoles && !item.allowedRoles.includes(user.role)) return false;
+                      // Permission check for non-admin
+                      if (user.role !== 'admin') {
+                        const key = item.href ?? item.colorKey;
+                        if (key && !isMenuPermitted(key)) return false;
+                      }
+                      return true;
+                    })
                     .map((item) => {
                     const colorKey = item.href ?? item.colorKey ?? '';
                     const isActiveItem = item.href

@@ -319,8 +319,9 @@ function BarangPicker({ jenis, onSelect, onClose, onAddBarang, refreshKey }: {
 
   async function fetchList(search: string) {
     setLoading(true);
-    const res = await fetch(`/api/barang?q=${encodeURIComponent(search)}`);
-    setList(await res.json());
+    const res = await fetch(`/api/barang?q=${encodeURIComponent(search)}&limit=100`);
+    const json = await res.json();
+    setList(json.data || []);
     setLoading(false);
   }
 
@@ -1223,8 +1224,9 @@ function JualBaseContent({ jenis }: JualBaseProps) {
                               const code = scanInput.trim();
                               if (!code) { setTargetRow(idx); setShowBarangPicker(true); return; }
                               // Try exact kode match
-                              const res = await fetch('/api/barang?q=' + encodeURIComponent(code));
-                              const list: BarangOption[] = await res.json();
+                              const res = await fetch('/api/barang?q=' + encodeURIComponent(code) + '&limit=5');
+                              const json = await res.json();
+                              const list: BarangOption[] = json.data || [];
                               const exact = list.find(b => b.kode.toUpperCase() === code.toUpperCase());
                               if (exact) {
                                 applyBarangToRow(idx, exact);

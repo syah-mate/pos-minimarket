@@ -97,11 +97,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const menuPermissions: string[] = user.menuPermissions ?? [];
+
     await createSession({
       userId: user._id.toString(),
       username: user.username,
       name: user.name,
       role: user.role,
+      menuPermissions,
     });
 
     return NextResponse.json({
@@ -111,6 +114,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         username: user.username,
         role: user.role,
+        menuPermissions,
         mustChangePassword: user.mustChangePassword ?? false,
       },
     });

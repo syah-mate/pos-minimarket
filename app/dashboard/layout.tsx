@@ -12,7 +12,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="h-screen flex flex-col bg-gray-100 overflow-hidden">
-      <Navbar user={{ name: session.name, role: session.role }} />
+      <Navbar user={{ name: session.name, role: session.role, menuPermissions: session.menuPermissions ?? [] }} />
       <main className="flex-1 overflow-hidden p-4">{children}</main>
     </div>
   );

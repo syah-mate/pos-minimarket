@@ -7,6 +7,7 @@ export interface IUser extends Document {
   username: string;
   password: string;
   role: UserRole;
+  menuPermissions: string[];
   isActive: boolean;
   mustChangePassword: boolean;
   createdAt: Date;
@@ -36,6 +37,10 @@ const UserSchema = new Schema<IUser>(
       type: String,
       enum: ["admin", "kasir"],
       default: "kasir",
+    },
+    menuPermissions: {
+      type: [String],
+      default: [],
     },
     isActive: {
       type: Boolean,
