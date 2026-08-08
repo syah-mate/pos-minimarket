@@ -5,6 +5,7 @@ export type UserRole = "admin" | "kasir";
 export interface IUser extends Document {
   name: string;
   username: string;
+  email: string;
   password: string;
   role: UserRole;
   menuPermissions: string[];
@@ -24,6 +25,13 @@ const UserSchema = new Schema<IUser>(
     username: {
       type: String,
       required: [true, "Username wajib diisi"],
+      unique: true,
+      trim: true,
+      lowercase: true,
+    },
+    email: {
+      type: String,
+      required: [true, "Email wajib diisi"],
       unique: true,
       trim: true,
       lowercase: true,

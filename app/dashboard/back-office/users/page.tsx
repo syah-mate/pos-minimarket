@@ -8,6 +8,7 @@ interface IUser {
   _id: string;
   name: string;
   username: string;
+  email: string;
   role: string;
   menuPermissions: string[];
   isActive: boolean;
@@ -17,6 +18,7 @@ interface IUser {
 interface UserInput {
   name: string;
   username: string;
+  email: string;
   password: string;
   role: string;
   menuPermissions: string[];
@@ -82,6 +84,7 @@ const MENU_GROUPS: MenuGroup[] = [
 const EMPTY_FORM: UserInput = {
   name: '',
   username: '',
+  email: '',
   password: '',
   role: 'kasir',
   menuPermissions: [],
@@ -91,6 +94,7 @@ const EMPTY_FORM: UserInput = {
 const TABLE_COLS = [
   { key: 'name', label: 'NAMA', cls: 'min-w-48' },
   { key: 'username', label: 'USERNAME', cls: 'min-w-36' },
+  { key: 'email', label: 'EMAIL', cls: 'min-w-48' },
   { key: 'role', label: 'ROLE', cls: 'min-w-20' },
   { key: 'status', label: 'STATUS', cls: 'min-w-20' },
 ];
@@ -206,6 +210,11 @@ function UserModal({ mode, initialData, onClose, onSave, saving }: ModalProps) {
                   <label className={lbl}>Username</label>
                   <input className={inp} value={form.username}
                     onChange={(e) => set('username', e.target.value)} required placeholder="Username login" />
+                </div>
+                <div>
+                  <label className={lbl}>Email</label>
+                  <input className={inp} value={form.email}
+                    onChange={(e) => set('email', e.target.value)} required type="email" placeholder="email@example.com" />
                 </div>
                 <div>
                   <label className={lbl}>
@@ -350,6 +359,7 @@ export default function UsersPage() {
         (u) =>
           u.name.toLowerCase().includes(q) ||
           u.username.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q) ||
           u.role.toLowerCase().includes(q)
       )
     );
@@ -405,6 +415,7 @@ export default function UsersPage() {
       ? {
           name: selected.name,
           username: selected.username,
+          email: selected.email ?? '',
           password: '',
           role: selected.role,
           menuPermissions: selected.menuPermissions ?? [],
@@ -429,7 +440,7 @@ export default function UsersPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Nama, username, atau role..."
+          placeholder="Nama, username, email, atau role..."
           className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 w-72"
         />
         <span className="text-xs text-gray-400">{filtered.length} user</span>
@@ -496,6 +507,7 @@ export default function UsersPage() {
                     <td className="border-r border-gray-100 text-center text-gray-300 select-none w-5">≡</td>
                     <td className="px-2 py-1 border-r border-gray-100 font-medium whitespace-nowrap">{u.name}</td>
                     <td className="px-2 py-1 border-r border-gray-100 whitespace-nowrap font-mono">{u.username}</td>
+                    <td className="px-2 py-1 border-r border-gray-100 whitespace-nowrap text-gray-600">{u.email}</td>
                     <td className="px-2 py-1 border-r border-gray-100">
                       <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
                         u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700'

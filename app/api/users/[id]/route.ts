@@ -14,7 +14,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await req.json();
   try {
-    const { name, username, password, role, menuPermissions, isActive, mustChangePassword } = body;
+    const { name, username, email, password, role, menuPermissions, isActive, mustChangePassword } = body;
 
     // Build update object
     const update: Record<string, unknown> = {};
@@ -35,6 +35,19 @@ export async function PUT(req: NextRequest, { params }: Params) {
         );
       }
       update.username = trimmed;
+    }
+
+    // Check duplicate email if changed
+    if (email !== undefined) {
+      const trimmedEmail = email.toLowerCase().trim();
+      const dupEmail = await User.findOne({ email: trimmedEmail, _id: { $ne: id } });
+      if (dupEmail) {
+        return NextResponse.json(
+          { message: 'Email sudah digunakan oleh user lain' },
+          { status: 409 }
+        );
+      }
+      update.email = trimmedEmail;
     }
 
     // Hash password if provided
