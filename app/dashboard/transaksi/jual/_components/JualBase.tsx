@@ -683,6 +683,17 @@ function JualBaseContent({ jenis }: JualBaseProps) {
     }));
   }
 
+  function deleteRow(idx: number) {
+    setNumberBuffer(null);
+    setScanInput('');
+    const current = itemsRef.current;
+    const next = current.filter((_, i) => i !== idx);
+    const safe = ensureEmptyLastRow(next);
+    setItems(safe);
+    setActiveRow(prev => Math.min(prev, safe.length - 1));
+    setActiveCol(1);
+  }
+
   function applyBarangToRow(idx: number, b: BarangOption) {
     const harga = jenis === 'toko'
       ? (b.hargaJualToko || b.hargaJual)
@@ -699,6 +710,29 @@ function JualBaseContent({ jenis }: JualBaseProps) {
       qty, harga, discPct, discRp,
       subtotal: Math.max(0, qty * harga - discRp),
     }));
+  }
+
+  function addBarangToForm(idx: number, b: BarangOption) {
+    const current = itemsRef.current;
+    const existingIdx = current.findIndex(r => r.barangId === b._id);
+    if (existingIdx !== -1) {
+      const existing = current[existingIdx];
+      updateItem(existingIdx, { qty: existing.qty + 1, discPct: existing.discPct });
+      setActiveRow(idx);
+      setActiveCol(1);
+      setNumberBuffer(null);
+      setScanInput('');
+      return;
+    }
+    applyBarangToRow(idx, b);
+    setItems(prev => {
+      const next = ensureEmptyLastRow(prev);
+      setActiveRow(Math.min(idx + 1, next.length - 1));
+      return next;
+    });
+    setActiveCol(1);
+    setNumberBuffer(null);
+    setScanInput('');
   }
 
   // ── Open new form ──────────────────────────────────────────────────────────
@@ -766,15 +800,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
   }
 
   function handleSelectBarang(b: BarangOption) {
-    applyBarangToRow(targetRow, b);
-    setItems(prev => {
-      const next = ensureEmptyLastRow(prev);
-      // After selecting, move active row to the next row, nama barang column
-      setActiveRow(Math.min(targetRow + 1, next.length - 1));
-      return next;
-    });
-    setActiveCol(1);
-    setNumberBuffer(null);
+    addBarangToForm(targetRow, b);
     setShowBarangPicker(false);
   }
 
@@ -903,7 +929,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
         return;
       }
 
-      // Backspace → remove last char from buffer + update value
+      // Backspace → remove last char from buffer, or delete active row
       if (e.key === 'Backspace') {
         const buf = numberBufferRef.current;
         if (buf && buf.row === activeRow && buf.col === activeCol && buf.str.length > 0) {
@@ -917,6 +943,9 @@ function JualBaseContent({ jenis }: JualBaseProps) {
             setNumberBuffer({ ...buf, str: newStr });
             applyBufferValue(buf.row, buf.col, parseFloat(newStr));
           }
+        } else if (itemsRef.current[activeRow]?.barangId) {
+          e.preventDefault();
+          deleteRow(activeRow);
         }
         return;
       }
@@ -1220,6 +1249,13 @@ function JualBaseContent({ jenis }: JualBaseProps) {
                                 });
                                 return;
                               }
+                              if (e.key === 'Backspace') {
+                                if (!scanInput) {
+                                  e.preventDefault();
+                                  if (row.barangId) deleteRow(idx);
+                                }
+                                return;
+                              }
                               if (e.key !== 'Enter') return;
                               const code = scanInput.trim();
                               if (!code) { setTargetRow(idx); setShowBarangPicker(true); return; }
@@ -1229,15 +1265,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
                               const list: BarangOption[] = json.data || [];
                               const exact = list.find(b => b.kode.toUpperCase() === code.toUpperCase());
                               if (exact) {
-                                applyBarangToRow(idx, exact);
-                                setItems(prev => {
-                                  const next = ensureEmptyLastRow(prev);
-                                  setActiveRow(Math.min(idx + 1, next.length - 1));
-                                  return next;
-                                });
-                                setActiveCol(1);
-                                setNumberBuffer(null);
-                                setScanInput('');
+                                addBarangToForm(idx, exact);
                               } else {
                                 setTargetRow(idx);
                                 setShowBarangPicker(true);

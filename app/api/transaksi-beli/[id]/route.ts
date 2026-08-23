@@ -61,14 +61,23 @@ export async function PUT(
     const stokTambah = item.satuanType === 'beli' ? item.qty * (item.isi || 1) : item.qty;
     const updateOps: Record<string, unknown> = { $inc: { stok: stokTambah } };
     const hargaSet: Record<string, number> = {};
-    // Update harga beli per-pcs ke master barang
+    // Update harga beli per-pcs ke master barang, dirata-rata sederhana
+    // antara harga beli lama dan harga beli pembelian ini (tidak tergantung stok)
     const hrgBeliPcs = item.satuanType === 'beli' && item.isi > 1
       ? Math.round(item.hrgBeli / item.isi)
       : item.hrgBeli;
-    if (hrgBeliPcs > 0) hargaSet.hargaBeli = hrgBeliPcs;
-    if (item.hgaToko > 0)   hargaSet.hargaJualToko   = item.hgaToko;
-    if (item.hrgPartai > 0) hargaSet.hargaJualPartai = item.hrgPartai;
-    if (item.hrgCabang > 0) hargaSet.hargaJualCabang = item.hrgCabang;
+    if (hrgBeliPcs > 0) {
+      const barangLama = await Barang.findById(item.barangId);
+      const hargaBeliLama = barangLama?.hargaBeli || 0;
+      hargaSet.hargaBeli = hargaBeliLama > 0
+        ? Math.round((hargaBeliLama + hrgBeliPcs) / 2)
+        : hrgBeliPcs;
+    }
+    if (updateHargaJual) {
+      if (item.hgaToko > 0)   hargaSet.hargaJualToko   = item.hgaToko;
+      if (item.hrgPartai > 0) hargaSet.hargaJualPartai = item.hrgPartai;
+      if (item.hrgCabang > 0) hargaSet.hargaJualCabang = item.hrgCabang;
+    }
     if (Object.keys(hargaSet).length > 0) updateOps.$set = hargaSet;
     await Barang.findByIdAndUpdate(item.barangId, updateOps);
   }

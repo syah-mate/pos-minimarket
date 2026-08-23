@@ -541,7 +541,7 @@ export default function BeliPage() {
   const [disc, setDisc] = useState(0);
   const [ppn, setPpn] = useState(0);
   const [cetakBarcode, setCetakBarcode] = useState(false);
-  const [updateHargaJual, setUpdateHargaJual] = useState(false);
+  const [updateHargaJual, setUpdateHargaJual] = useState(true);
   const [cetakNota, setCetakNota] = useState(false);
 
   // Items state
@@ -655,7 +655,7 @@ export default function BeliPage() {
     setKasId(''); setKasKode(''); setKasNama(''); setKasSaldo(0);
     setKeterangan(''); setPembayaran('Cash'); setTempoHari(0);
     setDisc(0); setPpn(0); setCetakBarcode(false);
-    setUpdateHargaJual(false); setCetakNota(false);
+    setUpdateHargaJual(true); setCetakNota(false);
     setItems([emptyRow()]); setActiveRow(0); setActiveCol(1); setNumberBuffer(null);
     setError('');
     setShowForm(true);
@@ -753,6 +753,42 @@ export default function BeliPage() {
     return rows;
   }
 
+  function deleteRow(idx: number) {
+    setNumberBuffer(null);
+    setScanInput('');
+    const current = itemsRef.current;
+    const next = current.filter((_, i) => i !== idx);
+    const safe = ensureEmptyLastRow(next);
+    setItems(safe);
+    setActiveRow(prev => Math.min(prev, safe.length - 1));
+    setActiveCol(1);
+  }
+
+  function addBarangToForm(idx: number, b: BarangOption, satuanType: 'jual' | 'beli') {
+    const current = itemsRef.current;
+    const existingIdx = current.findIndex(
+      r => r.barangId === b._id && r.satuanType === satuanType
+    );
+    if (existingIdx !== -1) {
+      const existing = current[existingIdx];
+      updateItem(existingIdx, { qty: existing.qty + 1 });
+      setActiveRow(idx);
+      setActiveCol(1);
+      setNumberBuffer(null);
+      setScanInput('');
+      return;
+    }
+    applyBarangToRow(idx, b, satuanType);
+    setItems(prev => {
+      const next = ensureEmptyLastRow(prev);
+      setActiveRow(Math.min(idx + 1, next.length - 1));
+      return next;
+    });
+    setActiveCol(1);
+    setNumberBuffer(null);
+    setScanInput('');
+  }
+
   // ── Picker callbacks ───────────────────────────────────────────────────────
 
   function handleSelectSupplier(s: SupplierOption) {
@@ -771,14 +807,7 @@ export default function BeliPage() {
       setPickerBarang(b);
       setShowSatuanPicker(true);
     } else {
-      applyBarangToRow(targetRow, b, 'jual');
-      setItems(prev => {
-        const next = ensureEmptyLastRow(prev);
-        setActiveRow(Math.min(targetRow + 1, next.length - 1));
-        return next;
-      });
-      setActiveCol(1);
-      setNumberBuffer(null);
+      addBarangToForm(targetRow, b, 'jual');
     }
   }
 
@@ -790,27 +819,13 @@ export default function BeliPage() {
       setPickerBarang(b);
       setShowSatuanPicker(true);
     } else {
-      applyBarangToRow(idx, b, 'jual');
-      setItems(prev => {
-        const next = ensureEmptyLastRow(prev);
-        setActiveRow(Math.min(idx + 1, next.length - 1));
-        return next;
-      });
-      setActiveCol(1);
-      setNumberBuffer(null);
+      addBarangToForm(idx, b, 'jual');
     }
   }
 
   function handleSelectSatuan(type: 'jual' | 'beli') {
     if (!pickerBarang) return;
-    applyBarangToRow(targetRow, pickerBarang, type);
-    setItems(prev => {
-      const next = ensureEmptyLastRow(prev);
-      setActiveRow(Math.min(targetRow + 1, next.length - 1));
-      return next;
-    });
-    setActiveCol(1);
-    setNumberBuffer(null);
+    addBarangToForm(targetRow, pickerBarang, type);
     setShowSatuanPicker(false);
     setPickerBarang(null);
   }
@@ -959,6 +974,9 @@ export default function BeliPage() {
             setNumberBuffer({ ...buf, str: newStr });
             applyBufferValue(buf.row, buf.col, parseFloat(newStr));
           }
+        } else if (itemsRef.current[activeRow]?.barangId) {
+          e.preventDefault();
+          deleteRow(activeRow);
         }
         return;
       }
@@ -1307,6 +1325,13 @@ export default function BeliPage() {
                                 const newIdx = Math.max(0, Math.min(EDITABLE_COLS.length - 1, idx + dir));
                                 return EDITABLE_COLS[newIdx];
                               });
+                              return;
+                            }
+                            if (e.key === 'Backspace') {
+                              if (!scanInput) {
+                                e.preventDefault();
+                                if (row.barangId) deleteRow(idx);
+                              }
                               return;
                             }
                             if (e.key !== 'Enter') return;
