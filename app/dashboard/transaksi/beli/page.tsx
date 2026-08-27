@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
+import { pickList } from '@/lib/apiList';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ function SupplierPicker({
   async function fetchList(search: string) {
     setLoading(true);
     const res = await fetch(`/api/supplier?q=${encodeURIComponent(search)}`);
-    setList(await res.json());
+    setList(pickList<SupplierOption>(await res.json()));
     setLoading(false);
   }
 
@@ -637,7 +638,7 @@ export default function BeliPage() {
   const fetchList = useCallback(async (q = '') => {
     setLoadingList(true);
     const res = await fetch(`/api/transaksi-beli?q=${encodeURIComponent(q)}`);
-    setList(await res.json());
+    setList(pickList<TransaksiDoc>(await res.json()));
     setLoadingList(false);
   }, []);
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { fetchAllPages, pickList } from '@/lib/apiList';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -8,6 +9,13 @@ interface SupplierOption {
   _id: string; kode: string; nama: string; alamat: string; saldoHutang: number;
 }
 interface KasOption { _id: string; kode: string; nama: string; saldo: number; }
+
+interface BeliHutangDoc {
+  _id: string; refNo: string; tanggal: string;
+  grandTotal: number; hutang: number; lunas: number;
+}
+
+interface ReturnBeliDoc { refBeli: string; rupiah?: number; }
 
 interface HutangOption {
   _id: string; refNo: string; tanggal: string;
@@ -65,7 +73,10 @@ function SupplierPicker({ onSelect, onClose }: {
   const [q, setQ] = useState('');
   const [list, setList] = useState<SupplierOption[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); fetch('/api/supplier').then(r => r.json()).then(setList); }, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+    fetch('/api/supplier?limit=100').then(r => r.json()).then(j => setList(pickList<SupplierOption>(j)));
+  }, []);
   const filtered = list.filter(s =>
     s.nama.toLowerCase().includes(q.toLowerCase()) || s.kode.toLowerCase().includes(q.toLowerCase())
   );
@@ -175,12 +186,10 @@ function HutangPicker({ supplierId, q: initialQ = '', onSelect, onClose }: {
     if (!supplierId) return;
     setLoading(true);
     try {
-      const [beliRes, returnRes] = await Promise.all([
-        fetch(`/api/transaksi-beli?supplierId=${supplierId}&hutangOnly=1`),
-        fetch(`/api/return-pembelian?supplierId=${supplierId}`),
+      const [beliData, returnData] = await Promise.all([
+        fetchAllPages<BeliHutangDoc>(`/api/transaksi-beli?supplierId=${supplierId}&hutangOnly=1`),
+        fetchAllPages<ReturnBeliDoc>(`/api/return-pembelian?supplierId=${supplierId}`),
       ]);
-      const beliData = await beliRes.json();
-      const returnData = await returnRes.json();
 
       // Sum return amounts by refBeli
       const returnByRef: Record<string, number> = {};
@@ -188,10 +197,7 @@ function HutangPicker({ supplierId, q: initialQ = '', onSelect, onClose }: {
         returnByRef[r.refBeli] = (returnByRef[r.refBeli] || 0) + (r.rupiah || 0);
       }
 
-      const result: HutangOption[] = beliData.map((b: {
-        _id: string; refNo: string; tanggal: string;
-        grandTotal: number; hutang: number; lunas: number;
-      }) => ({
+      const result: HutangOption[] = beliData.map((b) => ({
         _id: b._id,
         refNo: b.refNo,
         tanggal: b.tanggal,
@@ -308,7 +314,7 @@ export default function BayarHutangPage() {
   const fetchList = useCallback(async () => {
     setLoadingList(true);
     const res = await fetch('/api/bayar-hutang');
-    setList(await res.json());
+    setList(pickList<BayarHutangDoc>(await res.json()));
     setLoadingList(false);
   }, []);
 
@@ -375,8 +381,9 @@ export default function BayarHutangPage() {
 
   async function searchSupplierByKode(kode: string) {
     if (!kode.trim()) { setShowSupplierPicker(true); return; }
-    const res = await fetch('/api/supplier');
-    const data: SupplierOption[] = await res.json();
+    // Cari lewat query, bukan mengunduh seluruh daftar supplier lalu memfilter.
+    const res = await fetch(`/api/supplier?q=${encodeURIComponent(kode)}&limit=100`);
+    const data = pickList<SupplierOption>(await res.json());
     const found = data.find(s => s.kode.toLowerCase() === kode.toLowerCase());
     if (found) {
       handleSelectSupplier(found);
@@ -420,19 +427,19 @@ export default function BayarHutangPage() {
   async function handleLoadAllHutang() {
     if (!supplierId) { setError('Pilih supplier dulu.'); return; }
     setError('');
-    const [beliRes, returnRes] = await Promise.all([
-      fetch(`/api/transaksi-beli?supplierId=${supplierId}&hutangOnly=1`),
-      fetch(`/api/return-pembelian?supplierId=${supplierId}`),
+    // Daftar hutang harus lengkap — memotongnya di satu halaman akan
+    // menyembunyikan hutang supplier yang belum lunas.
+    const [beliData, returnData] = await Promise.all([
+      fetchAllPages<BeliHutangDoc>(`/api/transaksi-beli?supplierId=${supplierId}&hutangOnly=1`),
+      fetchAllPages<ReturnBeliDoc>(`/api/return-pembelian?supplierId=${supplierId}`),
     ]);
-    const beliData = await beliRes.json();
-    const returnData = await returnRes.json();
     const returnByRef: Record<string, number> = {};
     for (const r of returnData) {
       returnByRef[r.refBeli] = (returnByRef[r.refBeli] || 0) + (r.rupiah || 0);
     }
     const newRows: ItemRow[] = beliData
-      .filter((b: { _id: string }) => !items.some(r => r.transaksiBeliId === b._id))
-      .map((b: { _id: string; refNo: string; tanggal: string; grandTotal: number; hutang: number }) => ({
+      .filter((b) => !items.some(r => r.transaksiBeliId === b._id))
+      .map((b) => ({
         _key: Math.random().toString(36).slice(2),
         transaksiBeliId: b._id,
         noHutangInput: b.refNo,

@@ -4,6 +4,7 @@ import connectDB from "@/lib/db";
 import KoreksiStok from "@/models/KoreksiStok";
 import Barang from "@/models/Barang";
 import { requireRole } from "@/lib/authz";
+import { parsePaging, pagedJson } from '@/lib/paging';
 
 export async function GET(request: NextRequest) {
   const auth = await requireRole(['admin']);
@@ -20,8 +21,9 @@ export async function GET(request: NextRequest) {
       }
     : {};
 
-  const data = await KoreksiStok.find(query).sort({ createdAt: -1 }).lean();
-  return NextResponse.json(data);
+  return pagedJson(KoreksiStok, query, parsePaging(request.nextUrl.searchParams), {
+    sort: { createdAt: -1 },
+  });
 }
 
 export async function POST(request: NextRequest) {

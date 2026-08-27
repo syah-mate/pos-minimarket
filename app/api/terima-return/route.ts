@@ -4,6 +4,7 @@ import connectDB from '@/lib/db';
 import TerimaReturn from '@/models/TerimaReturn';
 import Barang from '@/models/Barang';
 import { requireRole } from '@/lib/authz';
+import { parsePaging, pagedJson } from '@/lib/paging';
 
 const MAX_RETRY_REFNO = 3;
 
@@ -40,8 +41,9 @@ export async function GET(req: NextRequest) {
       { refReturn:  { $regex: q, $options: 'i' } },
     ];
   }
-  const data = await TerimaReturn.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
-  return NextResponse.json(data);
+  return pagedJson(TerimaReturn, filter, parsePaging(searchParams), {
+    sort: { tanggal: -1, createdAt: -1 },
+  });
 }
 
 export async function POST(req: NextRequest) {

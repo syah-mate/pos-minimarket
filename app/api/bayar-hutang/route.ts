@@ -6,6 +6,7 @@ import TransaksiBeli from '@/models/TransaksiBeli';
 import Supplier from '@/models/Supplier';
 import Kas from '@/models/Kas';
 import { requireRole } from '@/lib/authz';
+import { parsePaging, pagedJson } from '@/lib/paging';
 
 const MAX_RETRY_REFNO = 3;
 
@@ -42,8 +43,9 @@ export async function GET(req: NextRequest) {
       { keterangan:   { $regex: q, $options: 'i' } },
     ];
   }
-  const data = await BayarHutang.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
-  return NextResponse.json(data);
+  return pagedJson(BayarHutang, filter, parsePaging(searchParams), {
+    sort: { tanggal: -1, createdAt: -1 },
+  });
 }
 
 export async function POST(req: NextRequest) {

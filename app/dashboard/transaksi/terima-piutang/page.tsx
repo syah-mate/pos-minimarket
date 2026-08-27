@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { fetchAllPages } from '@/lib/apiList';
+import { pickList } from '@/lib/apiList';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,7 +76,10 @@ function PelangganPicker({ onSelect, onClose }: {
   const [q, setQ] = useState('');
   const [list, setList] = useState<PelangganOption[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); fetch('/api/pelanggan').then(r => r.json()).then(setList); }, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+    fetch('/api/pelanggan?limit=100').then(r => r.json()).then(j => setList(pickList<PelangganOption>(j)));
+  }, []);
   const filtered = list.filter(p =>
     p.nama.toLowerCase().includes(q.toLowerCase()) || p.kode.toLowerCase().includes(q.toLowerCase())
   );
@@ -461,7 +465,7 @@ export default function TerimaPiutangPage() {
   const fetchList = useCallback(async () => {
     setLoadingList(true);
     const res = await fetch('/api/terima-piutang');
-    setList(await res.json());
+    setList(pickList<TerimaPiutangDoc>(await res.json()));
     setLoadingList(false);
   }, []);
 
@@ -526,7 +530,7 @@ export default function TerimaPiutangPage() {
 
   async function searchPelangganByKode(kode: string) {
     if (!kode.trim()) { setShowPelangganPicker(true); return; }
-    const res = await fetch('/api/pelanggan');
+    const res = await fetch('/api/pelanggan?limit=100');
     const data: PelangganOption[] = await res.json();
     const found = data.find(p => p.kode.toLowerCase() === kode.toLowerCase());
     if (found) handleSelectPelanggan(found);

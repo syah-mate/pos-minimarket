@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Supplier from '@/models/Supplier';
 import { requireRole } from '@/lib/authz';
+import { parsePaging, pagedJson } from '@/lib/paging';
 
 export async function GET(req: NextRequest) {
   const auth = await requireRole(['admin', 'kasir']);
@@ -19,8 +20,9 @@ export async function GET(req: NextRequest) {
         ],
       }
     : {};
-  const data = await Supplier.find(filter).sort({ nama: 1 });
-  return NextResponse.json(data);
+  return pagedJson(Supplier, filter, parsePaging(req.nextUrl.searchParams), {
+    sort: { nama: 1 },
+  });
 }
 
 export async function POST(req: NextRequest) {

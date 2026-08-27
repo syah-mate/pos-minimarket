@@ -5,6 +5,7 @@ import TransaksiBeli from '@/models/TransaksiBeli';
 import Barang from '@/models/Barang';
 import Supplier from '@/models/Supplier';
 import { requireRole } from '@/lib/authz';
+import { parsePaging, pagedJson } from '@/lib/paging';
 
 const MAX_RETRY_REFNO = 3;
 
@@ -70,8 +71,19 @@ export async function GET(req: NextRequest) {
   } else if (tipe === 'po') {
     filter.pembayaran = 'Tempo';
   }
-  const data = await TransaksiBeli.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
-  return NextResponse.json(data);
+  // Default 30 hari terakhir kalau user tidak sedang memfilter apa pun, supaya
+  // halaman pembelian tidak menunggu seluruh riwayat selesai dimuat.
+  if (!tglDari && !tglSampai && !q && !barangId && !supplierId && !hutangOnly && !tipe) {
+    filter.tanggal = { $gte: new Date(Date.now() - 30 * 864e5) };
+  }
+
+  // items hanya dipakai pemanggil yang memintanya (picker return pembelian & laporan).
+  const includeItems = searchParams.get('includeItems') === '1';
+
+  return pagedJson(TransaksiBeli, filter, parsePaging(searchParams), {
+    sort: { tanggal: -1, createdAt: -1 },
+    select: includeItems ? '' : '-items',
+  });
 }
 
 export async function POST(req: NextRequest) {

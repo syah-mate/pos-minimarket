@@ -4,6 +4,7 @@ import connectDB from '@/lib/db';
 import ReturnPembelian from '@/models/ReturnPembelian';
 import Barang from '@/models/Barang';
 import { requireRole } from '@/lib/authz';
+import { parsePaging, pagedJson } from '@/lib/paging';
 
 const MAX_RETRY_REFNO = 3;
 
@@ -48,8 +49,9 @@ export async function GET(req: NextRequest) {
       { refBeli:    { $regex: q, $options: 'i' } },
     ];
   }
-  const data = await ReturnPembelian.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
-  return NextResponse.json(data);
+  return pagedJson(ReturnPembelian, filter, parsePaging(searchParams), {
+    sort: { tanggal: -1, createdAt: -1 },
+  });
 }
 
 export async function POST(req: NextRequest) {

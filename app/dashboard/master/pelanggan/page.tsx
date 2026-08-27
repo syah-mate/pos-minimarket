@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import ImportModal from '@/components/ImportModal';
+import { pickList, type PagedResponse } from '@/lib/apiList';
+import Pagination from '@/components/Pagination';
+
+const PAGE_SIZE = 50;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -206,7 +210,6 @@ function PelangganModal({ mode, initialData, onClose, onSave, saving }: ModalPro
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PelangganPage() {
-  const [list, setList] = useState<IPelanggan[]>([]);
   const [filtered, setFiltered] = useState<IPelanggan[]>([]);
   const [selected, setSelected] = useState<IPelanggan | null>(null);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
@@ -215,37 +218,34 @@ export default function PelangganPage() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
+  // Pencarian & paginasi dilakukan di server. Sebelumnya seluruh koleksi diunduh
+  // lalu difilter di browser — tidak bisa dipertahankan begitu data pelanggan besar.
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/pelanggan');
+      const res = await fetch(
+        `/api/pelanggan?q=${encodeURIComponent(search)}&page=${page}&limit=${PAGE_SIZE}`
+      );
       if (!res.ok) throw new Error('Gagal memuat data');
-      const data = await res.json();
-      setList(data);
-      setFiltered(data);
+      const json = (await res.json()) as PagedResponse<IPelanggan>;
+      setFiltered(pickList<IPelanggan>(json));
+      if (json.total >= 0) {
+        setTotal(json.total);
+        setTotalPages(json.totalPages);
+      }
     } catch {
       setError('Gagal memuat data. Pastikan koneksi database aktif.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [search, page]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  useEffect(() => {
-    const q = search.toLowerCase();
-    setFiltered(
-      list.filter(
-        (p) =>
-          p.nama.toLowerCase().includes(q) ||
-          p.kode.toLowerCase().includes(q) ||
-          p.alamat.toLowerCase().includes(q) ||
-          p.telp.includes(q)
-      )
-    );
-  }, [search, list]);
 
   async function handleSave(formData: PelangganInput) {
     setSaving(true);
@@ -303,11 +303,11 @@ export default function PelangganPage() {
         <input
           type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="Nama, kode, alamat, telepon..."
           className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-purple-400 w-72"
         />
-        <span className="text-xs text-gray-400">{filtered.length} pelanggan</span>
+        <span className="text-xs text-gray-400">{total} pelanggan</span>
         {error && (
           <span className="text-red-500 text-xs ml-auto bg-red-50 border border-red-200 px-2 py-1 rounded">
             {error}
@@ -384,6 +384,15 @@ export default function PelangganPage() {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        label="pelanggan"
+        disabled={loading}
+        onChange={setPage}
+      />
 
       {/* Action bar */}
       <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-200 bg-gray-50 shrink-0">

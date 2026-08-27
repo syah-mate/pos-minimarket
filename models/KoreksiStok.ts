@@ -50,6 +50,7 @@ const KoreksiStokSchema = new Schema<IKoreksiStok>(
 
 // ─── Index untuk sort riwayat ──────────────────────────────────────────────
 KoreksiStokSchema.index({ tanggal: -1, createdAt: -1 });
+KoreksiStokSchema.index({ createdAt: -1 }); // sort default daftar koreksi stok
 
 const KoreksiStok: Model<IKoreksiStok> =
   mongoose.models.KoreksiStok || mongoose.model<IKoreksiStok>("KoreksiStok", KoreksiStokSchema);

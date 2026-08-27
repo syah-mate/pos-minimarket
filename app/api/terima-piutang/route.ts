@@ -6,6 +6,7 @@ import TransaksiJual from '@/models/TransaksiJual';
 import Pelanggan from '@/models/Pelanggan';
 import Kas from '@/models/Kas';
 import { requireRole } from '@/lib/authz';
+import { parsePaging, pagedJson } from '@/lib/paging';
 
 const MAX_RETRY_REFNO = 3;
 
@@ -43,8 +44,9 @@ export async function GET(req: NextRequest) {
       { keterangan:     { $regex: q, $options: 'i' } },
     ];
   }
-  const data = await TerimaPiutang.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
-  return NextResponse.json(data);
+  return pagedJson(TerimaPiutang, filter, parsePaging(searchParams), {
+    sort: { tanggal: -1, createdAt: -1 },
+  });
 }
 
 export async function POST(req: NextRequest) {

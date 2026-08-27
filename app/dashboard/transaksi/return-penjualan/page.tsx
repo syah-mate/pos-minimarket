@@ -80,7 +80,10 @@ function PelangganPicker({ onSelect, onClose }: {
   const [list, setList] = useState<PelangganOption[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { inputRef.current?.focus(); fetch('/api/pelanggan').then(r => r.json()).then(setList); }, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+    fetch('/api/pelanggan?limit=100').then(r => r.json()).then(j => setList(pickList<PelangganOption>(j)));
+  }, []);
 
   const filtered = list.filter(p =>
     p.nama.toLowerCase().includes(q.toLowerCase()) || p.kode.toLowerCase().includes(q.toLowerCase())
@@ -311,7 +314,7 @@ export default function ReturnPenjualanPage() {
   const fetchList = useCallback(async (q = '') => {
     setLoadingList(true);
     const res = await fetch(`/api/return-penjualan?q=${encodeURIComponent(q)}`);
-    setList(await res.json());
+    setList(pickList<ReturnDoc>(await res.json()));
     setLoadingList(false);
   }, []);
 

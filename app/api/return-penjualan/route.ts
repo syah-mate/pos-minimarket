@@ -5,6 +5,7 @@ import ReturnPenjualan from '@/models/ReturnPenjualan';
 import Barang from '@/models/Barang';
 import Pelanggan from '@/models/Pelanggan';
 import { requireRole } from '@/lib/authz';
+import { parsePaging, pagedJson } from '@/lib/paging';
 
 const MAX_RETRY_REFNO = 3;
 
@@ -43,8 +44,9 @@ export async function GET(req: NextRequest) {
       { pelangganKode: { $regex: q, $options: 'i' } },
     ];
   }
-  const data = await ReturnPenjualan.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
-  return NextResponse.json(data);
+  return pagedJson(ReturnPenjualan, filter, parsePaging(searchParams), {
+    sort: { tanggal: -1, createdAt: -1 },
+  });
 }
 
 export async function POST(req: NextRequest) {

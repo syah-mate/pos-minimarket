@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { pickList } from '@/lib/apiList';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ function FakturBeliPicker({ initialQ = '', barangId = '', onSelect, onClose }: {
     const params = new URLSearchParams({ q: search });
     if (barangId) params.set('barangId', barangId);
     const res = await fetch(`/api/transaksi-beli?${params}`);
-    setList(await res.json());
+    setList(pickList<FakturBeliOption>(await res.json()));
     setLoading(false);
   }
 
@@ -239,7 +240,7 @@ export default function ReturnPembelianPage() {
     const params = new URLSearchParams({ q });
     if (bk) params.set('belumKembali', '1');
     const res = await fetch(`/api/return-pembelian?${params}`);
-    setList(await res.json());
+    setList(pickList<ReturnDoc>(await res.json()));
     setLoadingList(false);
   }, [belumKembali]);
 

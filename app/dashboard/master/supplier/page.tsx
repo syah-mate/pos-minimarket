@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { pickList, type PagedResponse } from '@/lib/apiList';
+import Pagination from '@/components/Pagination';
+
+const PAGE_SIZE = 50;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,7 +168,6 @@ function SupplierModal({ mode, initialData, onClose, onSave, saving }: ModalProp
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SupplierPage() {
-  const [list, setList] = useState<ISupplier[]>([]);
   const [filtered, setFiltered] = useState<ISupplier[]>([]);
   const [selected, setSelected] = useState<ISupplier | null>(null);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
@@ -172,37 +175,33 @@ export default function SupplierPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
+  // Pencarian & paginasi dilakukan di server.
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/supplier');
+      const res = await fetch(
+        `/api/supplier?q=${encodeURIComponent(search)}&page=${page}&limit=${PAGE_SIZE}`
+      );
       if (!res.ok) throw new Error('Gagal memuat data');
-      const data = await res.json();
-      setList(data);
-      setFiltered(data);
+      const json = (await res.json()) as PagedResponse<ISupplier>;
+      setFiltered(pickList<ISupplier>(json));
+      if (json.total >= 0) {
+        setTotal(json.total);
+        setTotalPages(json.totalPages);
+      }
     } catch {
       setError('Gagal memuat data. Pastikan koneksi database aktif.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [search, page]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  useEffect(() => {
-    const q = search.toLowerCase();
-    setFiltered(
-      list.filter(
-        (s) =>
-          s.nama.toLowerCase().includes(q) ||
-          s.kode.toLowerCase().includes(q) ||
-          s.kota.toLowerCase().includes(q) ||
-          s.email.toLowerCase().includes(q)
-      )
-    );
-  }, [search, list]);
 
   async function handleSave(formData: SupplierInput) {
     setSaving(true);
@@ -262,11 +261,11 @@ export default function SupplierPage() {
         <input
           type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="Nama, kode, kota, email..."
           className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 w-72"
         />
-        <span className="text-xs text-gray-400">{filtered.length} supplier</span>
+        <span className="text-xs text-gray-400">{total} supplier</span>
         {error && (
           <span className="text-red-500 text-xs ml-auto bg-red-50 border border-red-200 px-2 py-1 rounded">
             {error}
@@ -341,6 +340,15 @@ export default function SupplierPage() {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        label="supplier"
+        disabled={loading}
+        onChange={setPage}
+      />
 
       {/* Action bar */}
       <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-200 bg-gray-50 shrink-0">

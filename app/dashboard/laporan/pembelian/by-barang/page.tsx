@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { fetchAllPages } from '@/lib/apiList';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,9 +95,11 @@ export default function LaporanPembelianByBarangPage() {
       if (tglDari) params.set('tglDari', tglDari);
       if (tglSampai) params.set('tglSampai', tglSampai);
 
-      const res = await fetch(`/api/transaksi-beli?${params.toString()}`);
-      if (!res.ok) throw new Error('Gagal mengambil data');
-      const transaksi: TransaksiBeliDoc[] = await res.json();
+      // Laporan harus melihat seluruh periode, bukan halaman pertama saja.
+      params.set('includeItems', '1');
+      const transaksi = await fetchAllPages<TransaksiBeliDoc>(
+        `/api/transaksi-beli?${params.toString()}`
+      );
 
       // Aggregate by barangId
       const aggMap = new Map<string, BarangAggregate>();

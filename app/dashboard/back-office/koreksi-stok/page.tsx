@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { pickList } from '@/lib/apiList';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -360,7 +361,7 @@ export default function KoreksiStokPage() {
   const fetchList = useCallback(async (q = '') => {
     setLoadingList(true);
     const res = await fetch(`/api/koreksi-stok?q=${encodeURIComponent(q)}`);
-    setList(await res.json());
+    setList(pickList<KoreksiDoc>(await res.json()));
     setLoadingList(false);
   }, []);
 

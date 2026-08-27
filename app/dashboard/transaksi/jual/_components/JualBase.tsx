@@ -131,7 +131,7 @@ function PelangganPicker({ onSelect, onClose }: {
   async function fetchList(search: string) {
     setLoading(true);
     const res = await fetch(`/api/pelanggan?q=${encodeURIComponent(search)}`);
-    setList(await res.json());
+    setList(pickList<PelangganOption>(await res.json()));
     setLoading(false);
   }
 

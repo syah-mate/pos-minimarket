@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { pickList } from '@/lib/apiList';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -135,7 +136,7 @@ function ReturnPicker({ initialQ = '', barangId = '', onSelect, onClose }: {
     const params = new URLSearchParams({ q: search });
     if (barangId) params.set('barangId', barangId);
     const res = await fetch(`/api/return-pembelian?${params}`);
-    setList(await res.json());
+    setList(pickList<ReturnPembelianOption>(await res.json()));
     setLoading(false);
   }
 
@@ -229,7 +230,7 @@ export default function TerimaReturnPage() {
   const fetchList = useCallback(async (q = '') => {
     setLoadingList(true);
     const res = await fetch(`/api/terima-return?q=${encodeURIComponent(q)}`);
-    setList(await res.json());
+    setList(pickList<TerimaDoc>(await res.json()));
     setLoadingList(false);
   }, []);
 
