@@ -20,6 +20,36 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Migrasi database
+
+Sebagian optimasi hidup di MongoDB (field turunan + index), bukan di kode — jadi
+tidak ikut terbawa bundle hasil build. Migrasi dijalankan **dari mesin developer**,
+bukan di server aplikasi: yang menentukan adalah database mana yang disentuh, bukan
+di mana perintahnya dijalankan.
+
+```bash
+# database lokal (memakai .env.local)
+npm run migrate:search-tokens
+```
+
+```powershell
+# database production — variabel dari shell menang atas .env.local,
+# jadi file itu tidak perlu diubah
+$env:MONGODB_URI = "<URI production>"
+npm run migrate:search-tokens
+Remove-Item Env:\MONGODB_URI
+```
+
+Skripnya idempotent dan tidak menghapus index apa pun, jadi aman diulang. Jalankan
+**sebelum** meng-upload build baru, dan sekali untuk setiap database (production,
+staging, instalasi baru). Detail lengkapnya ada di header
+`scripts/migrate-search-tokens.ts`.
+
+Terpisah dari itu, `npm run ensure-indexes` menyinkronkan index **seluruh** model.
+Perintah itu memakai `syncIndexes()` yang **menghapus** index yang tidak
+dideklarasikan di schema dan bisa mengunci database pada koleksi besar — jalankan
+hanya saat toko tutup, dan bukan untuk keperluan migrasi di atas.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
