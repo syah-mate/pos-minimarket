@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
+import { pickList } from '@/lib/apiList';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -651,7 +652,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
   const fetchList = useCallback(async (q = '') => {
     setLoadingList(true);
     const res = await fetch(`/api/transaksi-jual?jenis=${jenis}&q=${encodeURIComponent(q)}`);
-    setList(await res.json());
+    setList(pickList<JualDoc>(await res.json()));
     setLoadingList(false);
   }, [jenis]);
 

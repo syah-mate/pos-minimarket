@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { pickList } from '@/lib/apiList';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -189,9 +190,11 @@ function FakturJualPicker({ initialQ = '', onSelect, onClose }: {
 
   async function fetchJual(search: string) {
     setLoading(true);
-    const res = await fetch(`/api/transaksi-jual?q=${encodeURIComponent(search)}`);
-    const data = await res.json();
-    setJualList(data);
+    // includeItems=1 — picker ini menampilkan baris item, bukan header faktur saja.
+    const res = await fetch(
+      `/api/transaksi-jual?q=${encodeURIComponent(search)}&includeItems=1&limit=50`
+    );
+    setJualList(pickList<JualDoc>(await res.json()));
     setLoading(false);
   }
 

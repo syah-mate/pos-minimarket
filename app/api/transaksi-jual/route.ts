@@ -56,8 +56,45 @@ export async function GET(req: NextRequest) {
     filter.pembayaran = { $ne: 'Cash' };
     filter.piutang = { $gt: 0 };
   }
-  const data = await TransaksiJual.find(filter).sort({ tanggal: -1, createdAt: -1 }).lean();
-  return NextResponse.json(data);
+
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10) || 50));
+
+  // Rentang tanggal eksplisit menang. Kalau tidak ada dan user tidak sedang mencari
+  // apa pun, batasi 30 hari terakhir supaya halaman kasir tidak menunggu seluruh
+  // riwayat. Pencarian (q), filter pelanggan, dan daftar piutang tetap melihat
+  // seluruh riwayat — piutang lama tidak boleh hilang dari layar.
+  const tglDari = searchParams.get('tglDari');
+  const tglSampai = searchParams.get('tglSampai');
+  if (tglDari || tglSampai) {
+    const range: Record<string, Date> = {};
+    if (tglDari) range.$gte = new Date(tglDari);
+    if (tglSampai) range.$lte = new Date(tglSampai);
+    filter.tanggal = range;
+  } else if (!q && !pelangganId && !piutangOnly) {
+    filter.tanggal = { $gte: new Date(Date.now() - 30 * 864e5) };
+  }
+
+  // `items` hanya dipakai pemanggil yang memintanya (picker return penjualan).
+  // Untuk tampilan daftar, array items yang di-embed adalah bagian terbesar dokumen.
+  const includeItems = searchParams.get('includeItems') === '1';
+
+  const [data, total] = await Promise.all([
+    TransaksiJual.find(filter)
+      .select(includeItems ? '' : '-items')
+      .sort({ tanggal: -1, createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    page === 1 ? TransaksiJual.countDocuments(filter) : Promise.resolve(-1),
+  ]);
+
+  return NextResponse.json({
+    data,
+    total,
+    page,
+    totalPages: total >= 0 ? Math.ceil(total / limit) : -1,
+  });
 }
 
 export async function POST(req: NextRequest) {

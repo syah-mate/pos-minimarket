@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { fetchAllPages } from '@/lib/apiList';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -8,6 +9,15 @@ interface PelangganOption {
   _id: string; kode: string; nama: string; alamat: string; saldoPiutang: number;
 }
 interface KasOption { _id: string; kode: string; nama: string; saldo: number; }
+
+interface JualPiutangDoc {
+  _id: string; refNo: string; tanggal: string;
+  grandTotal: number; piutang: number; lunasPiutang: number;
+}
+
+interface ReturnDoc {
+  items?: { fakturId?: string; subtotal?: number }[];
+}
 
 interface PiutangOption {
   _id: string; refNo: string; tanggal: string;
@@ -175,12 +185,12 @@ function PiutangPicker({ pelangganId, q: initialQ = '', onSelect, onClose }: {
     if (!pelangganId) return;
     setLoading(true);
     try {
-      const [jualRes, returnRes] = await Promise.all([
-        fetch(`/api/transaksi-jual?pelangganId=${pelangganId}&piutangOnly=1`),
-        fetch(`/api/return-penjualan?pelangganId=${pelangganId}`),
+      // fetchAllPages: daftar piutang harus lengkap — memotongnya di satu halaman
+      // akan menyembunyikan hutang pelanggan yang belum lunas.
+      const [jualData, returnData] = await Promise.all([
+        fetchAllPages<JualPiutangDoc>(`/api/transaksi-jual?pelangganId=${pelangganId}&piutangOnly=1`),
+        fetchAllPages<ReturnDoc>(`/api/return-penjualan?pelangganId=${pelangganId}`),
       ]);
-      const jualData = await jualRes.json();
-      const returnData = await returnRes.json();
 
       // Sum return amounts by transaksiJualId (fakturId)
       const returnByFaktur: Record<string, number> = {};
@@ -192,10 +202,7 @@ function PiutangPicker({ pelangganId, q: initialQ = '', onSelect, onClose }: {
         }
       }
 
-      const result: PiutangOption[] = jualData.map((j: {
-        _id: string; refNo: string; tanggal: string;
-        grandTotal: number; piutang: number; lunasPiutang: number;
-      }) => ({
+      const result: PiutangOption[] = jualData.map((j) => ({
         _id: j._id,
         refNo: j.refNo,
         tanggal: j.tanggal,
@@ -277,12 +284,10 @@ function PiutangBulkPicker({ pelangganId, existingIds, onConfirm, onClose }: {
     setLoading(true);
     (async () => {
       try {
-        const [jualRes, returnRes] = await Promise.all([
-          fetch(`/api/transaksi-jual?pelangganId=${pelangganId}&piutangOnly=1`),
-          fetch(`/api/return-penjualan?pelangganId=${pelangganId}`),
+        const [jualData, returnData] = await Promise.all([
+          fetchAllPages<JualPiutangDoc>(`/api/transaksi-jual?pelangganId=${pelangganId}&piutangOnly=1`),
+          fetchAllPages<ReturnDoc>(`/api/return-penjualan?pelangganId=${pelangganId}`),
         ]);
-        const jualData = await jualRes.json();
-        const returnData = await returnRes.json();
 
         const returnByFaktur: Record<string, number> = {};
         for (const r of returnData) {
@@ -294,11 +299,8 @@ function PiutangBulkPicker({ pelangganId, existingIds, onConfirm, onClose }: {
         }
 
         const result: PiutangOption[] = jualData
-          .filter((j: { _id: string }) => !existingIds.includes(j._id))
-          .map((j: {
-            _id: string; refNo: string; tanggal: string;
-            grandTotal: number; piutang: number; lunasPiutang: number;
-          }) => ({
+          .filter((j) => !existingIds.includes(j._id))
+          .map((j) => ({
             _id: j._id,
             refNo: j.refNo,
             tanggal: j.tanggal,
