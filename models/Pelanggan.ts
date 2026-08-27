@@ -29,4 +29,11 @@ const PelangganSchema = new Schema<IPelanggan>(
   { timestamps: true }
 );
 
+// ─── Indexes untuk sort & pencarian ────────────────────────────────────────
+PelangganSchema.index({ nama: 1 });
+PelangganSchema.index(
+  { nama: 'text', kode: 'text', alamat: 'text', telp: 'text' },
+  { name: 'pelanggan_text' }
+);
+
 export default mongoose.models.Pelanggan ?? mongoose.model<IPelanggan>('Pelanggan', PelangganSchema);

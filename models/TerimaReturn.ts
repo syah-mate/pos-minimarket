@@ -39,6 +39,9 @@ const TerimaReturnSchema = new Schema<ITerimaReturn>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort riwayat ──────────────────────────────────────────────
+TerimaReturnSchema.index({ tanggal: -1, createdAt: -1 });
+
 const TerimaReturn: Model<ITerimaReturn> =
   mongoose.models.TerimaReturn ??
   mongoose.model<ITerimaReturn>('TerimaReturn', TerimaReturnSchema);

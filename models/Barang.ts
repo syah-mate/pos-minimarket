@@ -61,7 +61,7 @@ const BarangSchema = new Schema<IBarang>(
 
 // ─── Indexes untuk performa pencarian & pagination ─────────────────────────
 BarangSchema.index({ nama: 1 });
-BarangSchema.index({ kode: 1 });
+// kode: index otomatis dari `unique: true` — jangan dideklarasikan ulang
 BarangSchema.index({ kategori: 1 });
 BarangSchema.index({ supplier: 1 });
 

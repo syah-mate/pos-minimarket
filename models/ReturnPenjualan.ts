@@ -76,6 +76,9 @@ const ReturnPenjualanSchema = new Schema<IReturnPenjualan>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort riwayat ──────────────────────────────────────────────
+ReturnPenjualanSchema.index({ tanggal: -1, createdAt: -1 });
+
 const ReturnPenjualan: Model<IReturnPenjualan> =
   mongoose.models.ReturnPenjualan ??
   mongoose.model<IReturnPenjualan>('ReturnPenjualan', ReturnPenjualanSchema);

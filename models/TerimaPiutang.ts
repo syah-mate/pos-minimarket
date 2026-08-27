@@ -58,6 +58,9 @@ const TerimaPiutangSchema = new Schema<ITerimaPiutang>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort riwayat ──────────────────────────────────────────────
+TerimaPiutangSchema.index({ tanggal: -1, createdAt: -1 });
+
 const TerimaPiutang: Model<ITerimaPiutang> =
   mongoose.models.TerimaPiutang ??
   mongoose.model<ITerimaPiutang>('TerimaPiutang', TerimaPiutangSchema);

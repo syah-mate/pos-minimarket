@@ -25,4 +25,11 @@ const SupplierSchema = new Schema<ISupplier>(
   { timestamps: true }
 );
 
+// ─── Indexes untuk sort & pencarian ────────────────────────────────────────
+SupplierSchema.index({ nama: 1 });
+SupplierSchema.index(
+  { nama: 'text', kode: 'text', kota: 'text' },
+  { name: 'supplier_text' }
+);
+
 export default mongoose.models.Supplier ?? mongoose.model<ISupplier>('Supplier', SupplierSchema);

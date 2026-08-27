@@ -64,6 +64,9 @@ const UserSchema = new Schema<IUser>(
   }
 );
 
+// ─── Index untuk filter daftar user ────────────────────────────────────────
+UserSchema.index({ role: 1, isActive: 1 });
+
 const User: Model<IUser> =
   mongoose.models.User ?? mongoose.model<IUser>("User", UserSchema);
 

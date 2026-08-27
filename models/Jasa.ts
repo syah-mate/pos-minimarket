@@ -15,4 +15,7 @@ const JasaSchema = new Schema<IJasa>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort default ──────────────────────────────────────────────
+JasaSchema.index({ nama: 1 });
+
 export default mongoose.models.Jasa ?? mongoose.model<IJasa>('Jasa', JasaSchema);

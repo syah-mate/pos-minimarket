@@ -100,6 +100,12 @@ const TransaksBeliSchema = new Schema<ITransaksiBeli>(
   { timestamps: true }
 );
 
+// ─── Indexes untuk filter & sort riwayat transaksi ─────────────────────────
+TransaksBeliSchema.index({ tanggal: -1, createdAt: -1 });
+TransaksBeliSchema.index({ supplierId: 1, tanggal: -1 });
+TransaksBeliSchema.index({ pembayaran: 1, hutang: 1 });
+TransaksBeliSchema.index({ 'items.barangId': 1 });
+
 const TransaksiBeli: Model<ITransaksiBeli> =
   mongoose.models.TransaksiBeli ??
   mongoose.model<ITransaksiBeli>('TransaksiBeli', TransaksBeliSchema);

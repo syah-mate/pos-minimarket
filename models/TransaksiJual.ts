@@ -94,6 +94,13 @@ const TransaksiJualSchema = new Schema<ITransaksiJual>(
   { timestamps: true }
 );
 
+// ─── Indexes untuk filter & sort riwayat transaksi ─────────────────────────
+TransaksiJualSchema.index({ tanggal: -1, createdAt: -1 });
+TransaksiJualSchema.index({ pelangganId: 1, tanggal: -1 });
+TransaksiJualSchema.index({ jenis: 1, tanggal: -1 });
+TransaksiJualSchema.index({ pembayaran: 1, piutang: 1 });
+TransaksiJualSchema.index({ 'items.barangId': 1 });
+
 const TransaksiJual: Model<ITransaksiJual> =
   mongoose.models.TransaksiJual ??
   mongoose.model<ITransaksiJual>('TransaksiJual', TransaksiJualSchema);

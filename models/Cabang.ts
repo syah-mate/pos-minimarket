@@ -19,4 +19,7 @@ const CabangSchema = new Schema<ICabang>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort default ──────────────────────────────────────────────
+CabangSchema.index({ namaCabang: 1 });
+
 export default mongoose.models.Cabang ?? mongoose.model<ICabang>('Cabang', CabangSchema);

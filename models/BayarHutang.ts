@@ -58,6 +58,9 @@ const BayarHutangSchema = new Schema<IBayarHutang>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort riwayat ──────────────────────────────────────────────
+BayarHutangSchema.index({ tanggal: -1, createdAt: -1 });
+
 const BayarHutang: Model<IBayarHutang> =
   mongoose.models.BayarHutang ??
   mongoose.model<IBayarHutang>('BayarHutang', BayarHutangSchema);

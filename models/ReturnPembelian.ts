@@ -45,6 +45,9 @@ const ReturnPembelianSchema = new Schema<IReturnPembelian>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort riwayat ──────────────────────────────────────────────
+ReturnPembelianSchema.index({ tanggal: -1, createdAt: -1 });
+
 const ReturnPembelian: Model<IReturnPembelian> =
   mongoose.models.ReturnPembelian ??
   mongoose.model<IReturnPembelian>('ReturnPembelian', ReturnPembelianSchema);

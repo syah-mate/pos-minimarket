@@ -15,4 +15,7 @@ const KaryawanSchema = new Schema<IKaryawan>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort default ──────────────────────────────────────────────
+KaryawanSchema.index({ nama: 1 });
+
 export default mongoose.models.Karyawan ?? mongoose.model<IKaryawan>('Karyawan', KaryawanSchema);

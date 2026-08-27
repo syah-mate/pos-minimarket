@@ -15,4 +15,7 @@ const KasSchema = new Schema<IKas>(
   { timestamps: true }
 );
 
+// ─── Index untuk sort default ──────────────────────────────────────────────
+KasSchema.index({ nama: 1 });
+
 export default mongoose.models.Kas ?? mongoose.model<IKas>('Kas', KasSchema);
