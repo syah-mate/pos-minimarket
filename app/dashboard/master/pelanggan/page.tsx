@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import ImportModal from '@/components/ImportModal';
 import { pickList, type PagedResponse } from '@/lib/apiList';
 import Pagination from '@/components/Pagination';
+import { useDebouncedValue } from '@/app/hooks/useDebouncedValue';
 
 const PAGE_SIZE = 50;
 
@@ -222,6 +223,9 @@ export default function PelangganPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedSearch = useDebouncedValue(search, 250);
+
   // Pencarian & paginasi dilakukan di server. Sebelumnya seluruh koleksi diunduh
   // lalu difilter di browser — tidak bisa dipertahankan begitu data pelanggan besar.
   const fetchData = useCallback(async () => {
@@ -229,7 +233,7 @@ export default function PelangganPage() {
     setError('');
     try {
       const res = await fetch(
-        `/api/pelanggan?q=${encodeURIComponent(search)}&page=${page}&limit=${PAGE_SIZE}`
+        `/api/pelanggan?q=${encodeURIComponent(debouncedSearch)}&page=${page}&limit=${PAGE_SIZE}`
       );
       if (!res.ok) throw new Error('Gagal memuat data');
       const json = (await res.json()) as PagedResponse<IPelanggan>;
@@ -243,7 +247,7 @@ export default function PelangganPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, page]);
+  }, [debouncedSearch, page]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

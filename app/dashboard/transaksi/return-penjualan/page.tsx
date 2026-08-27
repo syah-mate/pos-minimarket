@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { pickList } from '@/lib/apiList';
+import { useDebouncedCallback } from '@/app/hooks/useDebouncedCallback';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -200,6 +201,8 @@ function FakturJualPicker({ initialQ = '', onSelect, onClose }: {
     setJualList(pickList<JualDoc>(await res.json()));
     setLoading(false);
   }
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedFetchJual = useDebouncedCallback(fetchJual);
 
   // Flatten all items from all faktur into one list
   const flatRows = jualList.flatMap(j =>
@@ -215,7 +218,7 @@ function FakturJualPicker({ initialQ = '', onSelect, onClose }: {
         </div>
         <div className="p-2 border-b shrink-0">
           <input ref={inputRef} value={q}
-            onChange={e => { setQ(e.target.value); fetchJual(e.target.value); }}
+            onChange={e => { setQ(e.target.value); debouncedFetchJual(e.target.value); }}
             placeholder="Ketik no. faktur / nama pelanggan..."
             className="border rounded px-2 py-1 text-xs w-full" />
         </div>
@@ -317,6 +320,8 @@ export default function ReturnPenjualanPage() {
     setList(pickList<ReturnDoc>(await res.json()));
     setLoadingList(false);
   }, []);
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedFetchList = useDebouncedCallback(fetchList);
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
@@ -464,7 +469,7 @@ export default function ReturnPenjualanPage() {
           {/* Search */}
           <div className="bg-red-50 border-b border-red-200 px-3 py-1 flex items-center gap-2 shrink-0">
             <span className="text-xs text-gray-600">Cari:</span>
-            <input value={searchQ} onChange={e => { setSearchQ(e.target.value); fetchList(e.target.value); }}
+            <input value={searchQ} onChange={e => { setSearchQ(e.target.value); debouncedFetchList(e.target.value); }}
               placeholder="No. ref / pelanggan..."
               className="border rounded px-2 py-0.5 text-xs flex-1 max-w-xs" />
           </div>

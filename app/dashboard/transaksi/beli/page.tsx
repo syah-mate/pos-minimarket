@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
 import { pickList } from '@/lib/apiList';
+import { useDebouncedFetch } from '@/app/hooks/useDebouncedFetch';
+import { useDebouncedCallback } from '@/app/hooks/useDebouncedCallback';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,6 +80,13 @@ interface TransaksiDoc {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
+// Referensi stabil — dipakai sebagai dependency useDebouncedFetch.
+const buildSupplierUrl = (q: string) => `/api/supplier?q=${encodeURIComponent(q)}&limit=100`;
+const pickSupplier = (json: unknown) => pickList<SupplierOption>(json);
+
+const buildBarangUrl = (q: string) => `/api/barang?q=${encodeURIComponent(q)}&limit=100`;
+const pickBarang = (json: unknown) => pickList<BarangOption>(json);
+
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID').format(Math.round(n));
 
@@ -126,31 +135,24 @@ function SupplierPicker({
   onClose: () => void;
 }) {
   const [q, setQ] = useState('');
-  const [list, setList] = useState<SupplierOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedRowRef = useRef<HTMLTableRowElement>(null);
+  const { list, loading, search, searchNow, flushPending } =
+    useDebouncedFetch<SupplierOption>(buildSupplierUrl, pickSupplier);
 
   useEffect(() => {
     inputRef.current?.focus();
-    fetchList('');
-  }, []);
+    searchNow('');
+  }, [searchNow]);
 
   useEffect(() => { setSelectedIndex(0); }, [list]);
   useEffect(() => { selectedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedIndex]);
 
-  async function fetchList(search: string) {
-    setLoading(true);
-    const res = await fetch(`/api/supplier?q=${encodeURIComponent(search)}`);
-    setList(pickList<SupplierOption>(await res.json()));
-    setLoading(false);
-  }
-
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(prev => Math.min(prev + 1, list.length - 1)); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(prev => Math.max(prev - 1, 0)); return; }
-    if (e.key === 'Enter') { e.preventDefault(); if (list.length > 0 && list[selectedIndex]) onSelect(list[selectedIndex]); return; }
+    if (e.key === 'Enter') { e.preventDefault(); if (flushPending(q)) return; if (list.length > 0 && list[selectedIndex]) onSelect(list[selectedIndex]); return; }
     if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
   }
 
@@ -165,7 +167,7 @@ function SupplierPicker({
           <input
             ref={inputRef}
             value={q}
-            onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onChange={e => { setQ(e.target.value); search(e.target.value); }}
             onKeyDown={handleInputKeyDown}
             placeholder="Cari nama / kode / kota..."
             className="border rounded px-2 py-1 text-sm flex-1"
@@ -310,36 +312,28 @@ function BarangPicker({
   refreshKey: number;
 }) {
   const [q, setQ] = useState('');
-  const [list, setList] = useState<BarangOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedRowRef = useRef<HTMLTableRowElement>(null);
+  const { list, loading, search, searchNow, flushPending } =
+    useDebouncedFetch<BarangOption>(buildBarangUrl, pickBarang);
 
   useEffect(() => {
     inputRef.current?.focus();
-    fetchList('');
-  }, []);
+    searchNow('');
+  }, [searchNow]);
 
   useEffect(() => {
-    fetchList(q);
+    searchNow(q);
   }, [refreshKey]);
 
   useEffect(() => { setSelectedIndex(0); }, [list]);
   useEffect(() => { selectedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedIndex]);
 
-  async function fetchList(search: string) {
-    setLoading(true);
-    const res = await fetch(`/api/barang?q=${encodeURIComponent(search)}&limit=100`);
-    const json = await res.json();
-    setList(json.data || []);
-    setLoading(false);
-  }
-
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(prev => Math.min(prev + 1, list.length - 1)); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(prev => Math.max(prev - 1, 0)); return; }
-    if (e.key === 'Enter') { e.preventDefault(); if (list.length > 0 && list[selectedIndex]) onSelect(list[selectedIndex]); return; }
+    if (e.key === 'Enter') { e.preventDefault(); if (flushPending(q)) return; if (list.length > 0 && list[selectedIndex]) onSelect(list[selectedIndex]); return; }
     if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
   }
 
@@ -354,7 +348,7 @@ function BarangPicker({
           <input
             ref={inputRef}
             value={q}
-            onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onChange={e => { setQ(e.target.value); search(e.target.value); }}
             onKeyDown={handleInputKeyDown}
             placeholder="Cari nama / kode / kategori..."
             className="border rounded px-2 py-1 text-sm flex-1"
@@ -641,6 +635,8 @@ export default function BeliPage() {
     setList(pickList<TransaksiDoc>(await res.json()));
     setLoadingList(false);
   }, []);
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedFetchList = useDebouncedCallback(fetchList);
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
@@ -1041,7 +1037,7 @@ export default function BeliPage() {
             <span className="text-xs text-gray-600">Cari:</span>
             <input
               value={searchQ}
-              onChange={e => { setSearchQ(e.target.value); fetchList(e.target.value); }}
+              onChange={e => { setSearchQ(e.target.value); debouncedFetchList(e.target.value); }}
               placeholder="No faktur / supplier / keterangan..."
               className="border rounded px-2 py-0.5 text-xs flex-1 max-w-xs"
             />

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { pickList } from '@/lib/apiList';
+import { useDebouncedCallback } from '@/app/hooks/useDebouncedCallback';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,8 @@ function BarangPicker({ initialQ = '', onSelect, onClose }: {
     setList(json.data || []);
     setLoading(false);
   }
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedFetchList = useDebouncedCallback(fetchList);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -83,7 +86,7 @@ function BarangPicker({ initialQ = '', onSelect, onClose }: {
         </div>
         <div className="p-3 border-b">
           <input ref={inputRef} value={q}
-            onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onChange={e => { setQ(e.target.value); debouncedFetchList(e.target.value); }}
             placeholder="Ketik kode / nama barang..."
             className="border rounded px-2 py-1 text-sm w-full" />
         </div>
@@ -139,6 +142,8 @@ function ReturnPicker({ initialQ = '', barangId = '', onSelect, onClose }: {
     setList(pickList<ReturnPembelianOption>(await res.json()));
     setLoading(false);
   }
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedFetchList = useDebouncedCallback(fetchList);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -149,7 +154,7 @@ function ReturnPicker({ initialQ = '', barangId = '', onSelect, onClose }: {
         </div>
         <div className="p-3 border-b">
           <input ref={inputRef} value={q}
-            onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onChange={e => { setQ(e.target.value); debouncedFetchList(e.target.value); }}
             placeholder="Ketik no. ref / nama barang..."
             className="border rounded px-2 py-1 text-sm w-full" />
         </div>
@@ -233,6 +238,8 @@ export default function TerimaReturnPage() {
     setList(pickList<TerimaDoc>(await res.json()));
     setLoadingList(false);
   }, []);
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedFetchList = useDebouncedCallback(fetchList);
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
@@ -375,7 +382,7 @@ export default function TerimaReturnPage() {
         {/* Search */}
         <div className="p-1.5 border-t border-gray-300">
           <input value={searchQ}
-            onChange={e => { setSearchQ(e.target.value); fetchList(e.target.value); }}
+            onChange={e => { setSearchQ(e.target.value); debouncedFetchList(e.target.value); }}
             placeholder="Pencarian"
             className="border rounded px-2 py-0.5 text-xs w-full" />
         </div>

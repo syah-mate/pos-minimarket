@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
 import { pickList } from '@/lib/apiList';
+import { useDebouncedFetch } from '@/app/hooks/useDebouncedFetch';
+import { useDebouncedCallback } from '@/app/hooks/useDebouncedCallback';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -86,6 +88,13 @@ interface JualDoc {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
+// Referensi stabil — dipakai sebagai dependency useDebouncedFetch.
+const buildPelangganUrl = (q: string) => `/api/pelanggan?q=${encodeURIComponent(q)}&limit=100`;
+const pickPelanggan = (json: unknown) => pickList<PelangganOption>(json);
+
+const buildBarangUrl = (q: string) => `/api/barang?q=${encodeURIComponent(q)}&limit=100`;
+const pickBarang = (json: unknown) => pickList<BarangOption>(json);
+
 const fmt = (n: number) => new Intl.NumberFormat('id-ID').format(Math.round(n));
 
 function toDateInput(d: Date | string) {
@@ -122,18 +131,11 @@ function PelangganPicker({ onSelect, onClose }: {
   onClose: () => void;
 }) {
   const [q, setQ] = useState('');
-  const [list, setList] = useState<PelangganOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { list, loading, search, searchNow } =
+    useDebouncedFetch<PelangganOption>(buildPelangganUrl, pickPelanggan);
 
-  useEffect(() => { inputRef.current?.focus(); fetchList(''); }, []);
-
-  async function fetchList(search: string) {
-    setLoading(true);
-    const res = await fetch(`/api/pelanggan?q=${encodeURIComponent(search)}`);
-    setList(pickList<PelangganOption>(await res.json()));
-    setLoading(false);
-  }
+  useEffect(() => { inputRef.current?.focus(); searchNow(''); }, [searchNow]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -144,7 +146,7 @@ function PelangganPicker({ onSelect, onClose }: {
         </div>
         <div className="p-3 border-b">
           <input ref={inputRef} value={q}
-            onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onChange={e => { setQ(e.target.value); search(e.target.value); }}
             placeholder="Cari nama / kode / alamat..."
             className="border rounded px-2 py-1 text-sm w-full" />
         </div>
@@ -294,18 +296,18 @@ function BarangPicker({ jenis, onSelect, onClose, onAddBarang, refreshKey }: {
   refreshKey: number;
 }) {
   const [q, setQ] = useState('');
-  const [list, setList] = useState<BarangOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const selectedRowRef = useRef<HTMLTableRowElement>(null);
+  const { list, loading, search, searchNow, flushPending } =
+    useDebouncedFetch<BarangOption>(buildBarangUrl, pickBarang);
 
-  useEffect(() => { inputRef.current?.focus(); fetchList(''); }, []);
+  useEffect(() => { inputRef.current?.focus(); searchNow(''); }, [searchNow]);
 
   // Refetch when refreshKey changes
   useEffect(() => {
-    if (refreshKey > 0) fetchList(q);
+    if (refreshKey > 0) searchNow(q);
   }, [refreshKey]);
 
   // Reset selection when list changes
@@ -317,14 +319,6 @@ function BarangPicker({ jenis, onSelect, onClose, onAddBarang, refreshKey }: {
   useEffect(() => {
     selectedRowRef.current?.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex]);
-
-  async function fetchList(search: string) {
-    setLoading(true);
-    const res = await fetch(`/api/barang?q=${encodeURIComponent(search)}&limit=100`);
-    const json = await res.json();
-    setList(json.data || []);
-    setLoading(false);
-  }
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') {
@@ -339,6 +333,9 @@ function BarangPicker({ jenis, onSelect, onClose, onAddBarang, refreshKey }: {
     }
     if (e.key === 'Enter') {
       e.preventDefault();
+      // Barcode scanner mengetik sangat cepat lalu menekan Enter. Kalau masih ada
+      // query tertunda, jalankan dulu — jangan memilih baris hasil ketikan lama.
+      if (flushPending(q)) return;
       if (list.length > 0 && list[selectedIndex]) {
         onSelect(list[selectedIndex]);
       }
@@ -360,7 +357,7 @@ function BarangPicker({ jenis, onSelect, onClose, onAddBarang, refreshKey }: {
         </div>
         <div className="p-3 border-b flex gap-2">
           <input ref={inputRef} value={q}
-            onChange={e => { setQ(e.target.value); fetchList(e.target.value); }}
+            onChange={e => { setQ(e.target.value); search(e.target.value); }}
             onKeyDown={handleInputKeyDown}
             placeholder="Scan barcode, atau ketik kode / nama barang..."
             className="border rounded px-2 py-1 text-sm flex-1" />
@@ -655,6 +652,8 @@ function JualBaseContent({ jenis }: JualBaseProps) {
     setList(pickList<JualDoc>(await res.json()));
     setLoadingList(false);
   }, [jenis]);
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedFetchList = useDebouncedCallback(fetchList);
 
   useEffect(() => { fetchList(); }, [fetchList]);
 
@@ -1008,7 +1007,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
           <div className="bg-green-50 border border-green-200 px-3 py-1.5 flex items-center gap-2 shrink-0">
             <span className="text-xs text-gray-600">Cari:</span>
             <input value={searchQ}
-              onChange={e => { setSearchQ(e.target.value); fetchList(e.target.value); }}
+              onChange={e => { setSearchQ(e.target.value); debouncedFetchList(e.target.value); }}
               placeholder="No faktur / pelanggan / keterangan..."
               className="border rounded px-2 py-0.5 text-xs flex-1 max-w-xs" />
           </div>

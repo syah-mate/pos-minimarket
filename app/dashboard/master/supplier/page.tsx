@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { pickList, type PagedResponse } from '@/lib/apiList';
 import Pagination from '@/components/Pagination';
+import { useDebouncedValue } from '@/app/hooks/useDebouncedValue';
 
 const PAGE_SIZE = 50;
 
@@ -179,13 +180,16 @@ export default function SupplierPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedSearch = useDebouncedValue(search, 250);
+
   // Pencarian & paginasi dilakukan di server.
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const res = await fetch(
-        `/api/supplier?q=${encodeURIComponent(search)}&page=${page}&limit=${PAGE_SIZE}`
+        `/api/supplier?q=${encodeURIComponent(debouncedSearch)}&page=${page}&limit=${PAGE_SIZE}`
       );
       if (!res.ok) throw new Error('Gagal memuat data');
       const json = (await res.json()) as PagedResponse<ISupplier>;
@@ -199,7 +203,7 @@ export default function SupplierPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, page]);
+  }, [debouncedSearch, page]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

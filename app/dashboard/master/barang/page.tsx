@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useDebouncedValue } from '@/app/hooks/useDebouncedValue';
 import { useRouter } from 'next/navigation';
 import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
 import ImportModal from '@/components/ImportModal';
@@ -116,7 +117,10 @@ export default function BarangPage() {
 
   const LIMIT = 50;
 
-  const fetchData = useCallback(async (p = 1, q = search) => {
+  const reqIdRef = useRef(0);
+
+  const fetchData = useCallback(async (p: number, q: string) => {
+    const reqId = ++reqIdRef.current;
     setLoading(true);
     setError('');
     try {
@@ -135,24 +139,24 @@ export default function BarangPage() {
         throw new Error(body.message || `HTTP ${res.status}: Gagal memuat data`);
       }
       const json = await res.json();
+      // Abaikan respons yang datang terlambat dari pencarian sebelumnya.
+      if (reqId !== reqIdRef.current) return;
       setList(json.data);
       setTotal(json.total);
       setPage(json.page);
       setTotalPages(json.totalPages);
     } catch (err) {
+      if (reqId !== reqIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Gagal memuat data. Pastikan koneksi database aktif yaaaaa.');
     } finally {
-      setLoading(false);
+      if (reqId === reqIdRef.current) setLoading(false);
     }
-  }, [router, search]);
+  }, [router]);
 
-  useEffect(() => { fetchData(1, ''); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Debounce: mengetik 7 karakter menghasilkan 1 request, bukan 7.
+  const debouncedSearch = useDebouncedValue(search, 250);
 
-  function handleSearch(val: string) {
-    setSearch(val);
-    // Reset ke page 1 tiap ganti pencarian
-    fetchData(1, val);
-  }
+  useEffect(() => { fetchData(1, debouncedSearch); }, [fetchData, debouncedSearch]);
 
   function goToPage(p: number) {
     if (p < 1 || p > totalPages || p === page) return;
@@ -226,7 +230,7 @@ export default function BarangPage() {
         <input
           type="text"
           value={search}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Nama, kode, kategori, supplier..."
           className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-72"
         />
@@ -443,7 +447,7 @@ export default function BarangPage() {
         <ImportModal
           title="IMPORT DATA BARANG"
           onClose={() => setShowImport(false)}
-          onImportSuccess={() => { setShowImport(false); fetchData(); }}
+          onImportSuccess={() => { setShowImport(false); fetchData(1, search); }}
         />
       )}
     </div>
