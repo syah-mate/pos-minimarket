@@ -115,6 +115,19 @@ function computeRupiah(row: ItemRow) {
   return Math.max(0, row.qty * row.hrgBeli - row.disc);
 }
 
+/**
+ * Satuan yang dipilih sistem saat barang ditambahkan ke form.
+ *
+ * 'jual' = satuanJual, yaitu satuan terkecil (isi selalu 1). Satuan 'beli'
+ * berisi `isi` kali satuan ini.
+ *
+ * Catatan: kriteria "harga per satuan paling kecil" menghasilkan satuan yang sama.
+ * Harga satuan 'beli' diturunkan sebagai `hargaBeli * isi`, jadi harga per pcs-nya
+ * (lihat `hrgBeliPerPcs`) selalu `hargaBeli` — persis sama dengan satuan 'jual'.
+ * Kedua kriteria itu tidak pernah berbeda, jadi dipakai yang terkecil.
+ */
+const DEFAULT_SATUAN_TYPE: 'jual' | 'beli' = 'jual';
+
 function hrgBeliPerPcs(row: ItemRow) {
   if (row.satuanType === 'beli' && row.isi > 1) return row.hrgBeli / row.isi;
   return row.hrgBeli;
@@ -798,26 +811,18 @@ export default function BeliPage() {
     setShowKasPicker(false);
   }
 
+  // Satuan dipilih otomatis: selalu satuan terkecil (satuanJual, isi = 1), jadi
+  // user tidak perlu memilih dua kali. Untuk barang bersatuan ganda, satuan masih
+  // bisa diganti kapan saja lewat kolom SATUAN di baris item.
   function handleSelectBarang(b: BarangOption) {
     setShowBarangPicker(false);
-    if (b.satuanBeli !== b.satuanJual || b.isi > 1) {
-      setPickerBarang(b);
-      setShowSatuanPicker(true);
-    } else {
-      addBarangToForm(targetRow, b, 'jual');
-    }
+    addBarangToForm(targetRow, b, DEFAULT_SATUAN_TYPE);
   }
 
-  // Exact match from barcode scan (skip satuan picker if only one satuan)
+  // Exact match from barcode scan
   function handleBarangExactMatch(idx: number, b: BarangOption) {
     setScanInput('');
-    if (b.satuanBeli !== b.satuanJual || b.isi > 1) {
-      setTargetRow(idx);
-      setPickerBarang(b);
-      setShowSatuanPicker(true);
-    } else {
-      addBarangToForm(idx, b, 'jual');
-    }
+    addBarangToForm(idx, b, DEFAULT_SATUAN_TYPE);
   }
 
   function handleSelectSatuan(type: 'jual' | 'beli') {
@@ -1355,6 +1360,7 @@ export default function BeliPage() {
                         <input
                           value={row.satuan}
                           readOnly
+                          title={row.barangId ? 'Klik untuk ganti satuan' : undefined}
                           onFocus={() => { setActiveRow(idx); setActiveCol(1); }}
                           onClick={() => {
                             if (!row.barangId) return;
