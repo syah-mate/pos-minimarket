@@ -5,6 +5,8 @@ import BarangModal, { BarangInput, EMPTY_FORM } from '@/components/BarangModal';
 import { pickList } from '@/lib/apiList';
 import { useDebouncedFetch } from '@/app/hooks/useDebouncedFetch';
 import { useDebouncedCallback } from '@/app/hooks/useDebouncedCallback';
+import { useInfiniteSearch } from '@/app/hooks/useInfiniteSearch';
+import { useInfiniteScrollSentinel } from '@/app/hooks/useInfiniteScrollSentinel';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -84,8 +86,13 @@ interface TransaksiDoc {
 const buildSupplierUrl = (q: string) => `/api/supplier?q=${encodeURIComponent(q)}&limit=100`;
 const pickSupplier = (json: unknown) => pickList<SupplierOption>(json);
 
-const buildBarangUrl = (q: string) => `/api/barang?q=${encodeURIComponent(q)}&limit=100`;
-const pickBarang = (json: unknown) => pickList<BarangOption>(json);
+// Picker barang dimuat per halaman (infinite scroll). `fields=picker` memangkas
+// ~10 field yang tidak dipakai, `count=0` membuang countDocuments yang memindai
+// seluruh koleksi di setiap ketikan.
+const BARANG_PAGE_SIZE = 25;
+const buildBarangUrl = (q: string, page: number, deep: boolean) =>
+  `/api/barang?q=${encodeURIComponent(q)}&page=${page}&limit=${BARANG_PAGE_SIZE}` +
+  `&fields=picker&count=0${deep ? '&deep=1' : ''}`;
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('id-ID').format(Math.round(n));
@@ -328,24 +335,42 @@ function BarangPicker({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const selectedRowRef = useRef<HTMLTableRowElement>(null);
-  const { list, loading, search, searchNow, flushPending } =
-    useDebouncedFetch<BarangOption>(buildBarangUrl, pickBarang);
+  // Scroll akibat navigasi keyboard tidak boleh memindahkan baris terpilih lewat
+  // onMouseEnter baris yang kebetulan lewat di bawah kursor.
+  const keyboardNavRef = useRef(false);
+  const { list, loading, loadingMore, hasMore, generation, search, searchNow, flushPending, loadMore } =
+    useInfiniteSearch<BarangOption>(buildBarangUrl);
+  const { rootRef: listContainerRef, sentinelRef } =
+    useInfiniteScrollSentinel<HTMLDivElement, HTMLTableRowElement>(loadMore, hasMore);
 
   useEffect(() => {
     inputRef.current?.focus();
     searchNow('');
   }, [searchNow]);
 
+  // Guard `> 0` supaya tidak menembak fetch kedua saat mount (efek di atas sudah
+  // memuat halaman pertama).
   useEffect(() => {
-    searchNow(q);
+    if (refreshKey > 0) searchNow(q);
   }, [refreshKey]);
 
-  useEffect(() => { setSelectedIndex(0); }, [list]);
+  // Reset selection hanya pada pencarian baru — bukan saat halaman berikutnya
+  // di-append, supaya highlight tidak melompat balik ke baris pertama.
+  useEffect(() => { setSelectedIndex(0); }, [generation]);
   useEffect(() => { selectedRowRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedIndex]);
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(prev => Math.min(prev + 1, list.length - 1)); return; }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(prev => Math.max(prev - 1, 0)); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      keyboardNavRef.current = true;
+      setSelectedIndex(prev => {
+        // Menavigasi sampai dasar daftar ikut memicu halaman berikutnya.
+        if (prev >= list.length - 2) loadMore();
+        return Math.min(prev + 1, list.length - 1);
+      });
+      return;
+    }
+    if (e.key === 'ArrowUp') { e.preventDefault(); keyboardNavRef.current = true; setSelectedIndex(prev => Math.max(prev - 1, 0)); return; }
     if (e.key === 'Enter') { e.preventDefault(); if (flushPending(q)) return; if (list.length > 0 && list[selectedIndex]) onSelect(list[selectedIndex]); return; }
     if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
   }
@@ -373,7 +398,11 @@ function BarangPicker({
             + Tambah Barang Baru
           </button>
         </div>
-        <div className="overflow-auto flex-1">
+        <div
+          ref={listContainerRef}
+          onMouseMove={() => { keyboardNavRef.current = false; }}
+          className="overflow-auto flex-1"
+        >
           <table className="w-full text-xs border-collapse">
             <thead className="bg-blue-600 text-white sticky top-0">
               <tr>
@@ -393,7 +422,7 @@ function BarangPicker({
                   key={b._id} ref={isSelected ? selectedRowRef : null}
                   className={`cursor-pointer ${isSelected ? 'bg-blue-300 font-semibold' : i % 2 === 0 ? 'bg-white hover:bg-blue-100' : 'bg-blue-50 hover:bg-blue-100'}`}
                   onClick={() => onSelect(b)}
-                  onMouseEnter={() => setSelectedIndex(i)}
+                  onMouseEnter={() => { if (!keyboardNavRef.current) setSelectedIndex(i); }}
                 >
                   <td className="px-2 py-1 border border-gray-200">{b.kode}</td>
                   <td className="px-2 py-1 border border-gray-200">{b.nama}</td>
@@ -408,6 +437,14 @@ function BarangPicker({
               })}
               {!loading && list.length === 0 && (
                 <tr><td colSpan={8} className="text-center py-6 text-gray-400 italic">Tidak ada data</td></tr>
+              )}
+              {/* Sentinel infinite scroll — memicu pemuatan halaman berikutnya. */}
+              {!loading && hasMore && (
+                <tr ref={sentinelRef}>
+                  <td colSpan={8} className="text-center py-3 text-gray-400">
+                    {loadingMore ? 'Memuat...' : ''}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
@@ -1339,7 +1376,7 @@ export default function BeliPage() {
                             if (e.key !== 'Enter') return;
                             const code = scanInput.trim();
                             if (!code) { setTargetRow(idx); setShowBarangPicker(true); return; }
-                            const res = await fetch('/api/barang?q=' + encodeURIComponent(code) + '&limit=5');
+                            const res = await fetch('/api/barang?q=' + encodeURIComponent(code) + '&limit=5&fields=picker&count=0');
                             const json = await res.json();
                             const list: BarangOption[] = json.data || [];
                             const exact = list.find((b: BarangOption) => b.kode.toUpperCase() === code.toUpperCase());

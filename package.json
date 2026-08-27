@@ -10,6 +10,7 @@
     "lint": "eslint",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "ensure-indexes": "tsx --env-file=.env.local scripts/ensure-indexes.ts",
+    "backfill-search-tokens": "tsx --env-file=.env.local scripts/backfill-search-tokens.ts",
     "deploy:prod": "bash ./deploy_prod.sh",
     "electron": "electron .",
     "electron:dev": "concurrently -k -n next,electron \"next dev --port 4072\" \"wait-on http://localhost:4072 && electron .\"",
