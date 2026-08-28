@@ -945,6 +945,9 @@ export default function BeliPage() {
   const handleSaveRef = useRef(handleSave);
   handleSaveRef.current = handleSave;
 
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
+
   // ── Delete ─────────────────────────────────────────────────────────────────
 
   async function handleHapus() {
@@ -961,6 +964,15 @@ export default function BeliPage() {
     if (!showForm) return;
 
     function handleKeyDown(e: KeyboardEvent) {
+      // F8 → Save. Dicek sebelum guard input agar tetap jalan walau fokus
+      // sedang berada di input scan barcode / kolom lain.
+      if (e.key === 'F8') {
+        e.preventDefault();
+        if (savingRef.current) return;
+        handleSaveRef.current();
+        return;
+      }
+
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
@@ -1039,12 +1051,6 @@ export default function BeliPage() {
           }
           return { row: activeRow, col: activeCol, str: newStr };
         });
-        return;
-      }
-
-      if (e.key === 'F8') {
-        e.preventDefault();
-        handleSaveRef.current();
         return;
       }
 
