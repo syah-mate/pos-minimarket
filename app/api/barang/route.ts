@@ -15,6 +15,20 @@ const PICKER_FIELDS =
   "_id kode nama kategori satuanBeli satuanJual isi stok lokasi diskon hasExpired " +
   "hargaBeli hargaJual hargaJualToko hargaJualPartai hargaJualCabang";
 
+/**
+ * Field untuk laporan stok (`?fields=stok`). Laporan membaca seluruh koleksi,
+ * jadi dokumen utuh terlalu berat — cukup kolom yang dicetak saja.
+ */
+const STOK_FIELDS =
+  "_id kode nama kategori lokasi satuanJual stok " +
+  "hargaBeli hargaJualToko hargaJualPartai hargaJualCabang";
+
+/**
+ * Field untuk laporan penjualan per supplier (`?fields=supplier`). Laporan hanya
+ * memetakan item penjualan ke supplier barangnya, jadi cukup identitas + supplier.
+ */
+const SUPPLIER_FIELDS = "_id kode nama supplier";
+
 /** Batas halaman untuk mode infinite scroll — `skip` dalam tidak boleh jadi lubang performa baru. */
 const MAX_PAGE = 200;
 
@@ -47,7 +61,15 @@ export async function GET(request: NextRequest) {
     // Picker tidak memakai `total`, dan countDocuments memindai seluruh koleksi
     // di setiap ketikan — ini beban terbesar endpoint ini.
     const withCount = url.searchParams.get("count") !== "0";
-    const select = url.searchParams.get("fields") === "picker" ? PICKER_FIELDS : "";
+    const fields = url.searchParams.get("fields");
+    const select =
+      fields === "picker"
+        ? PICKER_FIELDS
+        : fields === "stok"
+        ? STOK_FIELDS
+        : fields === "supplier"
+        ? SUPPLIER_FIELDS
+        : "";
     // Client meneruskan `deep=1` untuk halaman berikutnya dari query yang
     // halaman pertamanya sudah jatuh ke jalur fallback.
     let deep = url.searchParams.get("deep") === "1";
