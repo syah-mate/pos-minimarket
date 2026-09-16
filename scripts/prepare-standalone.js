@@ -19,6 +19,16 @@ function copyDir(src, dest) {
 copyDir(path.join(root, ".next", "static"), path.join(standalone, ".next", "static"));
 copyDir(path.join(root, "public"), path.join(standalone, "public"));
 
+// `next build` menyalin .env apa adanya ke standalone/, sehingga kredensial DB
+// dan JWT_SECRET akan ikut terbungkus ke dalam installer — extraResources tidak
+// masuk asar, jadi isinya bisa dibaca siapa pun yang punya .exe-nya. Konfigurasi
+// runtime datang dari .env.production / userData/.env lewat loadAppEnv().
+const leakedEnv = path.join(standalone, ".env");
+if (fs.existsSync(leakedEnv)) {
+  fs.rmSync(leakedEnv);
+  console.log("removed standalone/.env (kredensial tidak ikut dibundel)");
+}
+
 const envProd = path.join(root, ".env.production");
 if (fs.existsSync(envProd)) {
   fs.copyFileSync(envProd, path.join(standalone, ".env.production"));

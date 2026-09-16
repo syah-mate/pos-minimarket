@@ -21,6 +21,31 @@ function loadEnvFile(file) {
   return out;
 }
 
+// Mengisi process.env dari file env agar main process (mis. header struk di
+// printer.js) memakai konfigurasi yang sama dengan Next server. Env yang sudah
+// ada tidak ditimpa — sama seperti precedence lama di startNextServer.
+function loadAppEnv() {
+  const root = path.join(__dirname, "..");
+  // Urutan = prioritas menurun; entri pertama yang memuat sebuah key yang menang.
+  //
+  // Saat packaged: userData/.env di depan supaya operator bisa menimpa
+  // konfigurasi per-instalasi (mis. MONGODB_URI tiap cabang) tanpa rebuild.
+  // .env.production dibaca dari resources/standalone/ — bukan resources/ —
+  // karena di situlah prepare-standalone.js menaruhnya lewat extraResources.
+  const files = app.isPackaged
+    ? [
+        path.join(app.getPath("userData"), ".env"),
+        path.join(process.resourcesPath, "standalone", ".env.production"),
+      ]
+    : [path.join(root, ".env.local"), path.join(root, ".env")];
+
+  for (const file of files) {
+    for (const [k, v] of Object.entries(loadEnvFile(file))) {
+      if (process.env[k] === undefined) process.env[k] = v;
+    }
+  }
+}
+
 function waitForServer(port, timeoutMs = 30000) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
@@ -39,15 +64,9 @@ async function startNextServer(port) {
   const serverDir = path.join(process.resourcesPath, "standalone");
   const serverJs = path.join(serverDir, "server.js");
 
-  const fileEnv = {
-    ...loadEnvFile(path.join(process.resourcesPath, ".env.production")),
-    ...loadEnvFile(path.join(app.getPath("userData"), ".env")),
-  };
-
   const child = spawn(process.execPath, [serverJs], {
     cwd: serverDir,
     env: {
-      ...fileEnv,
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
@@ -69,4 +88,4 @@ async function startNextServer(port) {
   };
 }
 
-module.exports = { startNextServer };
+module.exports = { startNextServer, loadAppEnv };

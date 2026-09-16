@@ -10,22 +10,23 @@
     "lint": "eslint",
     "seed": "tsx --env-file=.env.local scripts/seed.ts",
     "ensure-indexes": "tsx --env-file=.env.local scripts/ensure-indexes.ts",
+    "seed-barang": "tsx --env-file=.env.local scripts/seed-barang.ts",
     "migrate:search-tokens": "tsx --env-file-if-exists=.env.local scripts/migrate-search-tokens.ts",
     "deploy:prod": "bash ./deploy_prod.sh",
     "electron": "electron .",
     "electron:dev": "concurrently -k -n next,electron \"next dev --port 4072\" \"wait-on http://localhost:4072 && electron .\"",
     "electron:build": "next build && node scripts/prepare-standalone.js && electron-builder",
-    "electron:pack": "next build && node scripts/prepare-standalone.js && electron-builder --dir",
-    "postinstall": "electron-builder install-app-deps"
+    "electron:pack": "next build && node scripts/prepare-standalone.js && electron-builder --dir"
   },
   "build": {
     "appId": "com.lentera.posminimarket",
+    "npmRebuild": false,
     "productName": "POS Minimarket",
     "directories": {
       "output": "release",
-      "buildResources": "build"
+      "buildResources": "assets"
     },
-    "icon": "build/icon.png",
+    "icon": "assets/icon.png",
     "files": [
       "electron/**/*",
       "package.json"
@@ -61,26 +62,27 @@
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "usb": "^2.18.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.0",
-    "concurrently": "^9.1.0",
-    "cross-env": "^7.0.3",
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
-    "wait-on": "^8.0.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
     "dotenv": "^17.4.2",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^8.0.1"
   }
 }

@@ -8,6 +8,7 @@ import { useDebouncedFetch } from '@/app/hooks/useDebouncedFetch';
 import { useDebouncedCallback } from '@/app/hooks/useDebouncedCallback';
 import { useInfiniteSearch } from '@/app/hooks/useInfiniteSearch';
 import { useInfiniteScrollSentinel } from '@/app/hooks/useInfiniteScrollSentinel';
+import { isElectron, printReceipt } from '@/lib/printer';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -149,7 +150,7 @@ function PelangganPicker({ onSelect, onClose }: {
       <div className="bg-white rounded shadow-xl w-175 max-h-[80vh] flex flex-col">
         <div className="bg-green-700 text-white px-4 py-2 font-bold text-sm flex justify-between">
           <span>PILIH PELANGGAN</span>
-          <button onClick={onClose} className="hover:text-red-300">✕</button>
+          <button onClick={onClose} aria-label="Tutup" className="hover:text-red-300">✕</button>
         </div>
         <div className="p-3 border-b">
           <input ref={inputRef} value={q}
@@ -210,7 +211,7 @@ function KasPicker({ onSelect, onClose }: {
       <div className="bg-white rounded shadow-xl w-112.5 max-h-[60vh] flex flex-col">
         <div className="bg-green-700 text-white px-4 py-2 font-bold text-sm flex justify-between">
           <span>PILIH KAS</span>
-          <button onClick={onClose} className="hover:text-red-300">✕</button>
+          <button onClick={onClose} aria-label="Tutup" className="hover:text-red-300">✕</button>
         </div>
         <div className="p-3 border-b">
           <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)}
@@ -264,7 +265,7 @@ function KaryawanPicker({ onSelect, onClose }: {
       <div className="bg-white rounded shadow-xl w-100 max-h-[60vh] flex flex-col">
         <div className="bg-green-700 text-white px-4 py-2 font-bold text-sm flex justify-between">
           <span>PILIH SPG / KARYAWAN</span>
-          <button onClick={onClose} className="hover:text-red-300">✕</button>
+          <button onClick={onClose} aria-label="Tutup" className="hover:text-red-300">✕</button>
         </div>
         <div className="p-3 border-b">
           <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)}
@@ -372,7 +373,7 @@ function BarangPicker({ jenis, onSelect, onClose, onAddBarang, refreshKey }: {
       <div className="bg-white rounded shadow-xl w-200 max-h-[80vh] flex flex-col">
         <div className="bg-green-700 text-white px-4 py-2 font-bold text-sm flex justify-between">
           <span>PILIH BARANG</span>
-          <button onClick={onClose} className="hover:text-red-300">✕</button>
+          <button onClick={onClose} aria-label="Tutup" className="hover:text-red-300">✕</button>
         </div>
         <div className="p-3 border-b flex gap-2">
           <input ref={inputRef} value={q}
@@ -466,7 +467,7 @@ function CabangPicker({ onSelect, onClose }: {
       <div className="bg-white rounded shadow-xl w-112.5 max-h-[60vh] flex flex-col">
         <div className="bg-green-700 text-white px-4 py-2 font-bold text-sm flex justify-between">
           <span>PILIH CABANG</span>
-          <button onClick={onClose} className="hover:text-red-300">✕</button>
+          <button onClick={onClose} aria-label="Tutup" className="hover:text-red-300">✕</button>
         </div>
         <div className="p-3 border-b">
           <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)}
@@ -892,6 +893,32 @@ function JualBaseContent({ jenis }: JualBaseProps) {
       const text = await res.text();
       const data = text ? JSON.parse(text) : {};
       if (!res.ok) { setError(data.error || 'Gagal menyimpan.'); return; }
+
+      // Cetak struk hanya di aplikasi desktop; kegagalan cetak tidak membatalkan
+      // transaksi yang sudah tersimpan, jadi cukup diberitahukan via alert
+      // (form sudah ditutup, banner error di dalam form tidak akan terlihat).
+      if (cetakNota && isElectron()) {
+        try {
+          await printReceipt({
+            invoiceNo: data.refNo || refNo,
+            date: new Date().toLocaleString('id-ID'),
+            cashier: spg || body.operator,
+            items: validItems.map(r => ({
+              name: r.namaBarang,
+              qty: r.qty,
+              price: r.harga,
+              total: r.subtotal,
+            })),
+            subtotal,
+            discount: Math.round(discAmount),
+            tax: Math.round(ppnAmount),
+            total: Math.round(grandTotal),
+          });
+        } catch (e) {
+          alert('Transaksi tersimpan, tapi gagal cetak struk: ' + (e as Error).message);
+        }
+      }
+
       setShowForm(false); setEditId(null); fetchList();
     } finally {
       setSaving(false);
@@ -919,12 +946,17 @@ function JualBaseContent({ jenis }: JualBaseProps) {
     if (!showForm) return;
 
     function handleKeyDown(e: KeyboardEvent) {
-      // F8 → Save. Dicek sebelum guard input agar tetap jalan walau fokus
-      // sedang berada di input scan barcode / kolom lain.
+      // F8 → Save. F12 → buka picker Kas. Dicek sebelum guard input agar tetap
+      // jalan walau fokus sedang berada di input scan barcode / kolom lain.
       if (e.key === 'F8') {
         e.preventDefault();
         if (savingRef.current) return;
         handleSaveRef.current();
+        return;
+      }
+      if (e.key === 'F12') {
+        e.preventDefault();
+        setShowKasPicker(true);
         return;
       }
 
@@ -1128,9 +1160,11 @@ function JualBaseContent({ jenis }: JualBaseProps) {
               PENJUALAN {jenisLabel}
             </div>
             <div className="ml-auto flex gap-1 pb-1">
-              <button className="w-4 h-4 bg-yellow-400 rounded-sm text-[10px] flex items-center justify-center text-black">_</button>
-              <button className="w-4 h-4 bg-blue-400 rounded-sm text-[10px] flex items-center justify-center text-white">□</button>
-              <button onClick={() => { setShowForm(false); setEditId(null); }}
+              {/* Dekorasi title bar gaya aplikasi desktop klasik — bukan kontrol
+                  window sungguhan, jadi tidak diberi semantik tombol. */}
+              <span aria-hidden="true" className="w-4 h-4 bg-yellow-400 rounded-sm text-[10px] flex items-center justify-center text-black">_</span>
+              <span aria-hidden="true" className="w-4 h-4 bg-blue-400 rounded-sm text-[10px] flex items-center justify-center text-white">□</span>
+              <button onClick={() => { setShowForm(false); setEditId(null); }} aria-label="Tutup"
                 className="w-4 h-4 bg-red-500 rounded-sm text-[10px] flex items-center justify-center text-white hover:bg-red-700">✕</button>
             </div>
           </div>
@@ -1215,7 +1249,8 @@ function JualBaseContent({ jenis }: JualBaseProps) {
 
             {/* Grand total */}
             <div className="flex-1 flex flex-col items-center justify-center">
-              <p className="text-8xl font-bold text-red-600 leading-none">{fmt(grandTotal)}</p>
+              <p className="text-xs text-green-700 font-semibold tracking-widest">GRANDTOTAL</p>
+              <p className="text-7xl font-bold text-green-900 leading-none mt-1">{fmt(grandTotal)}</p>
             </div>
           </div>
 
@@ -1311,7 +1346,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
                             className="w-full px-2 py-0.5 bg-transparent text-gray-900 text-xs cursor-pointer outline-none" />
                           {isActiveRow && row.barangId && (
                             <div className="absolute left-0 bottom-full flex gap-0 text-[10px] z-10 pointer-events-none mb-0.5">
-                              <span className="bg-orange-500 text-white px-1 py-0.5">Stok: {row.stok}  Rak: {row.lokasi}</span>
+                              <span className="bg-orange-500 text-white px-1 py-0.5">Stok: {row.stok} • Rak: {row.lokasi}</span>
                             </div>
                           )}
                         </div>
@@ -1377,7 +1412,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
                             const next = ensureEmptyLastRow(items.filter((_, i) => i !== idx));
                             setItems(next);
                             setActiveRow(Math.min(activeRow, next.length - 1));
-                          }} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                          }} aria-label="Hapus baris" className="text-red-400 hover:text-red-600 text-xs">✕</button>
                         )}
                       </td>
                     </tr>
@@ -1392,7 +1427,7 @@ function JualBaseContent({ jenis }: JualBaseProps) {
             <div className="flex flex-col gap-0.5">
               <label className="flex items-center gap-1 text-xs cursor-pointer">
                 <input type="checkbox" checked={cetakNota} onChange={e => setCetakNota(e.target.checked)} />
-                Print
+                Cetak Nota
               </label>
               <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 flex-wrap max-w-md">
                 <span>↑↓←→ Navigasi</span>

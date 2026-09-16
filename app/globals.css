@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 :root {
+  /* App ini light-only. Tanpa ini, "force dark mode" bawaan browser
+     (mis. Brave/Chrome auto-darken) mewarnai ulang seluruh halaman pakai
+     heuristik sendiri — mengabaikan CSS kita sepenuhnya — sehingga teks
+     tanpa warna eksplisit (mayoritas isi tabel) jadi nyaris putih di atas
+     background terang. `color-scheme: light` memberi tahu browser halaman
+     ini sudah punya tema sendiri, jadi override itu dilewati. */
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -10,13 +17,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

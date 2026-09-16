@@ -25,7 +25,14 @@ async function printReceipt(data = {}) {
       if (err) return reject(new Error("Gagal membuka printer USB: " + err.message));
       try {
         const printer = new Printer(device, { encoding: "cp850" });
-        const store = data.store || {};
+        // Header toko: payload menang, jatuh ke env (.env / userData/.env)
+        // agar bisa diubah per-instalasi tanpa rebuild.
+        const store = {
+          name: process.env.STORE_NAME,
+          address: process.env.STORE_ADDRESS,
+          phone: process.env.STORE_PHONE,
+          ...(data.store || {}),
+        };
         const line = "-".repeat(32);
 
         printer.align("ct");
@@ -55,6 +62,7 @@ async function printReceipt(data = {}) {
         };
         if (data.subtotal != null) row("Subtotal", data.subtotal);
         if (data.discount) row("Diskon", -Math.abs(data.discount));
+        if (data.tax) row("PPN", data.tax);
         printer.style("b");
         row("TOTAL", data.total);
         printer.style("normal");

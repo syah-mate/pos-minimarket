@@ -1,9 +1,8 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
-const { startNextServer } = require("./server");
+const { startNextServer, loadAppEnv } = require("./server");
 const { printReceipt, listPrinters } = require("./printer");
 
-const PORT = Number(process.env.ELECTRON_APP_PORT || 4072);
 const isDev = !app.isPackaged;
 
 let mainWindow = null;
@@ -22,6 +21,8 @@ async function createWindow() {
     },
   });
 
+  // Dibaca di sini, bukan saat module load, karena loadAppEnv() jalan lebih dulu.
+  const PORT = Number(process.env.ELECTRON_APP_PORT || 4072);
   const url = `http://localhost:${PORT}`;
 
   if (!isDev) {
@@ -38,7 +39,10 @@ async function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  loadAppEnv();
+  return createWindow();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

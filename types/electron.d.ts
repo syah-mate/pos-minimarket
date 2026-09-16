@@ -13,6 +13,7 @@ export interface ReceiptData {
   items: ReceiptItem[];
   subtotal?: number;
   discount?: number;
+  tax?: number;
   total?: number;
   paid?: number;
   change?: number;
