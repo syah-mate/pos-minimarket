@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const { startNextServer, loadAppEnv } = require("./server");
-const { printReceipt, listPrinters } = require("./printer");
+const printer = require("./printer");
 
 const isDev = !app.isPackaged;
 
@@ -56,10 +56,56 @@ app.on("before-quit", () => {
   if (stopServer) stopServer();
 });
 
+// Normalize any thrown printer error into a structured result the renderer can
+// map to a friendly Indonesian message. Never leak a raw IPC "Error invoking
+// remote method" string to the UI.
+function toErrorResult(e) {
+  const code = e && e.code ? e.code : "PRINT_FAILED";
+  const message = e && e.message ? e.message : String(e);
+  console.error("[Printer] error", code, message);
+  return { error: message, code };
+}
+
 ipcMain.handle("printer:print-receipt", async (_event, payload) => {
-  return printReceipt(payload);
+  try {
+    return await printer.printReceipt(payload);
+  } catch (e) {
+    return toErrorResult(e);
+  }
+});
+
+ipcMain.handle("printer:test", async () => {
+  try {
+    return await printer.testPrint();
+  } catch (e) {
+    return toErrorResult(e);
+  }
+});
+
+ipcMain.handle("printer:test-bluetooth", async () => {
+  try {
+    return await printer.testBluetooth();
+  } catch (e) {
+    return toErrorResult(e);
+  }
+});
+
+ipcMain.handle("printer:scan-bluetooth", async () => {
+  try {
+    return await printer.scanBluetooth();
+  } catch (e) {
+    return toErrorResult(e);
+  }
+});
+
+ipcMain.handle("printer:get-config", async () => {
+  try {
+    return printer.getConfig();
+  } catch (e) {
+    return toErrorResult(e);
+  }
 });
 
 ipcMain.handle("printer:list", async () => {
-  return listPrinters();
+  return printer.listPrinters();
 });

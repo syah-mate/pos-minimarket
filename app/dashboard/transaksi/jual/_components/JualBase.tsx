@@ -9,6 +9,8 @@ import { useDebouncedCallback } from '@/app/hooks/useDebouncedCallback';
 import { useInfiniteSearch } from '@/app/hooks/useInfiniteSearch';
 import { useInfiniteScrollSentinel } from '@/app/hooks/useInfiniteScrollSentinel';
 import { isElectron, printReceipt } from '@/lib/printer';
+import type { ReceiptData } from '@/types/electron';
+import { FiPrinter } from 'react-icons/fi';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -591,6 +593,14 @@ function JualBaseContent({ jenis }: JualBaseProps) {
   const [ppn, setPpn] = useState(0);
   const [cetakNota, setCetakNota] = useState(true);
 
+  // Cetak-ulang: struk yang gagal dicetak disimpan agar bisa dicetak ulang
+  // tanpa menyimpan/membuat transaksi lagi (transaksi sudah tersimpan).
+  const [printFail, setPrintFail] = useState<{ payload: ReceiptData; message: string } | null>(null);
+  const [reprinting, setReprinting] = useState(false);
+
+  // Detail struk: pratinjau + cetak ulang transaksi tersimpan dari daftar.
+  const [detailReceipt, setDetailReceipt] = useState<{ payload: ReceiptData; loading?: boolean; error?: string; printing?: boolean } | null>(null);
+
   // Cabang
   const [cabangId, setCabangId] = useState('');
   const [cabangKode, setCabangKode] = useState('');
@@ -894,34 +904,93 @@ function JualBaseContent({ jenis }: JualBaseProps) {
       const data = text ? JSON.parse(text) : {};
       if (!res.ok) { setError(data.error || 'Gagal menyimpan.'); return; }
 
-      // Cetak struk hanya di aplikasi desktop; kegagalan cetak tidak membatalkan
-      // transaksi yang sudah tersimpan, jadi cukup diberitahukan via alert
-      // (form sudah ditutup, banner error di dalam form tidak akan terlihat).
+      // Cetak struk hanya di aplikasi desktop. Kegagalan cetak TIDAK membatalkan
+      // transaksi yang sudah tersimpan — struk disimpan agar bisa dicetak ulang
+      // lewat modal (tanpa membuat transaksi baru).
       if (cetakNota && isElectron()) {
+        const payload: ReceiptData = {
+          invoiceNo: data.refNo || refNo,
+          date: new Date().toLocaleString('id-ID'),
+          cashier: spg || body.operator,
+          items: validItems.map(r => ({
+            name: r.namaBarang,
+            qty: r.qty,
+            price: r.harga,
+            total: r.subtotal,
+          })),
+          subtotal,
+          discount: Math.round(discAmount),
+          tax: Math.round(ppnAmount),
+          total: Math.round(grandTotal),
+        };
         try {
-          await printReceipt({
-            invoiceNo: data.refNo || refNo,
-            date: new Date().toLocaleString('id-ID'),
-            cashier: spg || body.operator,
-            items: validItems.map(r => ({
-              name: r.namaBarang,
-              qty: r.qty,
-              price: r.harga,
-              total: r.subtotal,
-            })),
-            subtotal,
-            discount: Math.round(discAmount),
-            tax: Math.round(ppnAmount),
-            total: Math.round(grandTotal),
-          });
+          await printReceipt(payload);
         } catch (e) {
-          alert('Transaksi tersimpan, tapi gagal cetak struk: ' + (e as Error).message);
+          setPrintFail({ payload, message: (e as Error).message });
         }
       }
 
       setShowForm(false); setEditId(null); fetchList();
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Cetak ulang struk yang tersimpan. TIDAK memanggil handleSave — transaksi
+  // sudah ada di database, ini hanya mengirim ulang byte ESC/POS ke printer.
+  async function handleReprint() {
+    if (!printFail) return;
+    setReprinting(true);
+    try {
+      await printReceipt(printFail.payload);
+      setPrintFail(null);
+    } catch (e) {
+      setPrintFail({ payload: printFail.payload, message: (e as Error).message });
+    } finally {
+      setReprinting(false);
+    }
+  }
+
+  // Buka pratinjau struk transaksi tersimpan (dari daftar). Membangun ReceiptData
+  // dari dokumen, TIDAK mengubah/menyimpan transaksi.
+  async function openReceiptDetail(id: string) {
+    setDetailReceipt({ payload: { items: [] }, loading: true });
+    try {
+      const res = await fetch(`/api/transaksi-jual/${id}`);
+      const doc = await res.json();
+      const sub = Number(doc.subtotal ?? (doc.items || []).reduce((s: number, it: { subtotal?: number }) => s + Number(it.subtotal || 0), 0));
+      const discPct = Number(doc.disc || 0);
+      const ppnPct = Number(doc.ppn || 0);
+      const discAmt = Math.round(sub * (discPct / 100));
+      const afterDisc = sub - discAmt;
+      const ppnAmt = Math.round(afterDisc * (ppnPct / 100));
+      const total = Number(doc.grandTotal ?? afterDisc + ppnAmt);
+      const payload: ReceiptData = {
+        invoiceNo: doc.refNo,
+        date: new Date(doc.tanggal).toLocaleString('id-ID'),
+        cashier: doc.spg || doc.operator || 'admin',
+        items: (doc.items || []).map((it: { namaBarang: string; qty: number; harga: number; subtotal: number }) => ({
+          name: it.namaBarang, qty: it.qty, price: it.harga, total: it.subtotal,
+        })),
+        subtotal: sub,
+        discount: discAmt,
+        tax: ppnAmt,
+        total,
+      };
+      setDetailReceipt({ payload });
+    } catch (e) {
+      setDetailReceipt({ payload: { items: [] }, error: (e as Error).message });
+    }
+  }
+
+  async function handlePrintDetail() {
+    if (!detailReceipt) return;
+    setDetailReceipt(d => d && { ...d, printing: true, error: undefined });
+    try {
+      await printReceipt(detailReceipt.payload);
+      setDetailReceipt(null);
+    } catch (e) {
+      setDetailReceipt(d => d && { ...d, printing: false, error: (e as Error).message });
     }
   }
 
@@ -1088,10 +1157,11 @@ function JualBaseContent({ jenis }: JualBaseProps) {
                   {listCols.map(c => (
                     <th key={c} className="px-2 py-1.5 text-left border border-green-500 whitespace-nowrap font-semibold">{c}</th>
                   ))}
+                  <th className="px-2 py-1.5 text-center border border-green-500 whitespace-nowrap font-semibold">STRUK</th>
                 </tr>
               </thead>
               <tbody>
-                {loadingList && <tr><td colSpan={10} className="text-center py-10 text-gray-400">Memuat...</td></tr>}
+                {loadingList && <tr><td colSpan={11} className="text-center py-10 text-gray-400">Memuat...</td></tr>}
                 {!loadingList && list.map((t, i) => (
                   <tr key={t._id}
                     onClick={() => setSelectedId(t._id === selectedId ? null : t._id)}
@@ -1115,10 +1185,18 @@ function JualBaseContent({ jenis }: JualBaseProps) {
                       {t.jatuhTempo ? new Date(t.jatuhTempo).toLocaleDateString('id-ID') : ''}
                     </td>
                     <td className="px-2 py-1 border-r border-gray-200">{t.keterangan}</td>
+                    <td className="px-2 py-1 border-r border-gray-200 text-center">
+                      <button
+                        onClick={e => { e.stopPropagation(); openReceiptDetail(t._id); }}
+                        title="Lihat / cetak ulang struk"
+                        className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-blue-700">
+                        <FiPrinter className="h-3 w-3" /> Struk
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {!loadingList && list.length === 0 && (
-                  <tr><td colSpan={10} className="text-center py-16 text-gray-400 italic">&lt;No data to display&gt;</td></tr>
+                  <tr><td colSpan={11} className="text-center py-16 text-gray-400 italic">&lt;No data to display&gt;</td></tr>
                 )}
               </tbody>
             </table>
@@ -1134,6 +1212,10 @@ function JualBaseContent({ jenis }: JualBaseProps) {
               <button onClick={() => selectedId && openEditForm(selectedId)} disabled={!selectedId}
                 className="px-4 py-1 rounded-full bg-gray-200 hover:bg-gray-300 text-xs font-semibold border border-gray-400 disabled:opacity-40">
                 Edit
+              </button>
+              <button onClick={() => selectedId && openReceiptDetail(selectedId)} disabled={!selectedId}
+                className="px-4 py-1 rounded-full bg-gray-200 hover:bg-gray-300 text-xs font-semibold border border-gray-400 disabled:opacity-40">
+                Struk
               </button>
               <button onClick={handleHapus} disabled={!selectedId}
                 className="px-4 py-1 rounded-full bg-gray-200 hover:bg-gray-300 text-xs font-semibold border border-gray-400 disabled:opacity-40">
@@ -1496,6 +1578,101 @@ function JualBaseContent({ jenis }: JualBaseProps) {
           onSave={handleSaveBarang}
           saving={savingBarang}
         />
+      )}
+
+      {/* ── CETAK ULANG STRUK ────────────────────────────────────────────── */}
+      {printFail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+            <h3 className="mb-1 text-base font-semibold text-gray-800">Struk gagal dicetak</h3>
+            <p className="text-sm text-gray-600">
+              Transaksi berhasil disimpan, tetapi struk gagal dicetak.
+            </p>
+            <p className="mt-2 text-xs text-gray-500">{printFail.message}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPrintFail(null)}
+                disabled={reprinting}
+                className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                OK
+              </button>
+              <button
+                type="button"
+                onClick={handleReprint}
+                disabled={reprinting}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {reprinting ? 'Mencetak…' : 'Cetak Ulang'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DETAIL / CETAK ULANG STRUK ───────────────────────────────────── */}
+      {detailReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-xs rounded-lg bg-white p-4 shadow-xl">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-800">Detail Struk</h3>
+              <button type="button" onClick={() => setDetailReceipt(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+
+            {detailReceipt.loading ? (
+              <p className="py-8 text-center text-sm text-gray-500">Memuat…</p>
+            ) : (
+              <>
+                <div className="max-h-80 overflow-y-auto rounded border border-gray-200 bg-gray-50 p-3 font-mono text-[11px] leading-tight text-gray-800">
+                  <div className="text-center font-semibold">{detailReceipt.payload.invoiceNo}</div>
+                  <div className="text-center text-gray-500">{detailReceipt.payload.date}</div>
+                  <div className="my-1 border-t border-dashed border-gray-300" />
+                  {detailReceipt.payload.items.map((it, i) => (
+                    <div key={i} className="mb-0.5">
+                      <div>{it.name}</div>
+                      <div className="flex justify-between">
+                        <span>{it.qty} x {fmt(it.price)}</span>
+                        <span>{fmt(it.total)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="my-1 border-t border-dashed border-gray-300" />
+                  {!!detailReceipt.payload.discount && (
+                    <div className="flex justify-between"><span>Diskon</span><span>-{fmt(detailReceipt.payload.discount)}</span></div>
+                  )}
+                  {!!detailReceipt.payload.tax && (
+                    <div className="flex justify-between"><span>PPN</span><span>{fmt(detailReceipt.payload.tax)}</span></div>
+                  )}
+                  <div className="flex justify-between font-semibold"><span>TOTAL</span><span>{fmt(detailReceipt.payload.total || 0)}</span></div>
+                </div>
+
+                {detailReceipt.error && (
+                  <p className="mt-2 text-xs text-red-600">{detailReceipt.error}</p>
+                )}
+
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDetailReceipt(null)}
+                    disabled={detailReceipt.printing}
+                    className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Tutup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrintDetail}
+                    disabled={detailReceipt.printing}
+                    className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {detailReceipt.printing ? 'Mencetak…' : 'Cetak Struk'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </>
   );
