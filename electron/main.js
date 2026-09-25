@@ -13,7 +13,7 @@ async function createWindow() {
     width: 1280,
     height: 800,
     show: false,
-    icon: path.join(__dirname, "..", "public", "adaptive-icon.png"),
+    icon: path.join(__dirname, process.platform === "win32" ? "icon.ico" : "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
