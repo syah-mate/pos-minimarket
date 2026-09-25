@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>POS Minimarket — Kasir Offline</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; background: #f1f5f9; color: #0f172a; font-size: 14px; }
+    button { font: inherit; cursor: pointer; border: 0; border-radius: 6px; padding: 8px 14px; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    input { font: inherit; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; }
+    input:focus { outline: 2px solid #2563eb; border-color: #2563eb; }
+    .hidden { display: none !important; }
+    .btn-primary { background: #1e40af; color: #fff; }
+    .btn-light { background: #e2e8f0; color: #0f172a; }
+    .btn-danger { background: #fee2e2; color: #b91c1c; }
+
+    header { background: #1e3a8a; color: #fff; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    header h1 { font-size: 16px; margin: 0; }
+    .badge { background: #f59e0b; color: #111; font-weight: 700; font-size: 12px; padding: 3px 8px; border-radius: 4px; }
+    .badge.ok { background: #22c55e; }
+    header .spacer { flex: 1; }
+    header .meta { font-size: 12px; opacity: .9; }
+
+    #login { max-width: 360px; margin: 80px auto; background: #fff; padding: 28px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+    #login h2 { margin: 0 0 4px; }
+    #login p { color: #64748b; margin: 0 0 18px; font-size: 13px; }
+    #login label { display: block; margin: 12px 0 4px; font-weight: 600; }
+    #login input { width: 100%; }
+    #login button { width: 100%; margin-top: 18px; padding: 10px; }
+
+    .error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 8px 10px; border-radius: 6px; margin-top: 12px; }
+    .info { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; padding: 8px 10px; border-radius: 6px; }
+
+    #kasir { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 16px; height: calc(100vh - 52px); }
+    .panel { background: #fff; border-radius: 10px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); display: flex; flex-direction: column; min-height: 0; }
+    .scan { position: relative; }
+    .scan input { width: 100%; font-size: 16px; padding: 10px 12px; }
+    #results { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; max-height: 320px; overflow: auto; z-index: 10; box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+    #results div { padding: 8px 10px; display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
+    #results div.active, #results div:hover { background: #dbeafe; }
+    #results small { color: #64748b; }
+
+    .cart { flex: 1; overflow: auto; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    th { background: #f8fafc; font-size: 12px; color: #475569; position: sticky; top: 0; }
+    td.num, th.num { text-align: right; }
+    td input.qty { width: 70px; text-align: right; padding: 4px 6px; }
+    .empty { text-align: center; color: #94a3b8; padding: 40px 0; }
+
+    .total { font-size: 34px; font-weight: 800; text-align: right; color: #1e3a8a; margin: 4px 0 12px; }
+    .row { display: flex; justify-content: space-between; margin: 6px 0; }
+    .pay input { width: 100%; font-size: 22px; text-align: right; padding: 10px; }
+    .change { font-size: 22px; font-weight: 700; text-align: right; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .actions .full { grid-column: span 2; padding: 12px; font-size: 16px; }
+    .keys { color: #64748b; font-size: 12px; margin-top: 10px; }
+    .recent { margin-top: 14px; overflow: auto; flex: 1; font-size: 12px; }
+    .recent div { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+    .st-pending { color: #d97706; }
+    .st-synced { color: #16a34a; }
+
+    #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #0f172a; color: #fff; padding: 10px 18px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>POS Minimarket</h1>
+    <span class="badge" id="modeBadge">MODE OFFLINE</span>
+    <span class="meta" id="queueInfo"></span>
+    <span class="spacer"></span>
+    <span class="meta" id="userInfo"></span>
+    <button class="btn-light" id="btnSync">Sinkron sekarang</button>
+    <button class="btn-light" id="btnOnline" disabled>Kembali online</button>
+    <button class="btn-danger hidden" id="btnLogout">Keluar</button>
+  </header>
+
+  <form id="login" class="hidden" autocomplete="off">
+    <h2>Kasir Offline</h2>
+    <p>Server tidak terjangkau. Login memakai akun yang pernah login online di PC ini.</p>
+    <label for="username">Username</label>
+    <input id="username" required />
+    <label for="password">Password</label>
+    <input id="password" type="password" required />
+    <div id="loginError" class="error hidden"></div>
+    <button class="btn-primary" type="submit">Masuk</button>
+  </form>
+
+  <main id="kasir" class="hidden">
+    <section class="panel">
+      <div id="catalogWarn" class="info hidden" style="margin-bottom:10px"></div>
+      <div class="scan">
+        <input id="scan" placeholder="Scan barcode / ketik kode atau nama barang (F2)" autocomplete="off" />
+        <div id="results" class="hidden"></div>
+      </div>
+      <div class="cart">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Barang</th><th class="num">Qty</th><th class="num">Harga</th><th class="num">Disc</th><th class="num">Subtotal</th><th></th></tr>
+          </thead>
+          <tbody id="cartBody"></tbody>
+        </table>
+        <div id="cartEmpty" class="empty">Belum ada barang. Scan barcode untuk mulai.</div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="row"><span>Total</span><span id="itemCount"></span></div>
+      <div class="total" id="total">Rp0</div>
+      <div class="pay">
+        <label for="paid">Bayar (F8)</label>
+        <input id="paid" inputmode="numeric" autocomplete="off" />
+      </div>
+      <div class="row"><span>Kembali</span><span class="change" id="change">Rp0</span></div>
+      <div id="saleError" class="error hidden"></div>
+      <div class="actions">
+        <button class="btn-light" id="btnExact">Uang pas</button>
+        <button class="btn-light" id="btnClear">Kosongkan</button>
+        <button class="btn-primary full" id="btnSave">Simpan &amp; Cetak (Enter)</button>
+      </div>
+      <div class="keys">F2 scan · F8 bayar · Enter simpan · Esc tutup pencarian</div>
+      <div class="recent" id="recent"></div>
+    </aside>
+  </main>
+
+  <div id="toast" class="hidden"></div>
+  <script src="kasir.js"></script>
+</body>
+</html>

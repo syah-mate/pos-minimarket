@@ -103,8 +103,25 @@ export async function POST(req: NextRequest) {
 
   await connectDB();
   const body = await req.json();
-  const { items = [], pembayaran, grandTotal, pelangganId, tanggal, ...rest } = body;
+  const { items = [], pembayaran, grandTotal, pelangganId, tanggal, clientId, offline, ...rest } = body;
   const tanggalDate = tanggal ? new Date(tanggal) : new Date();
+
+  // Transaksi dari kasir offline (Electron + SQLite). Barangnya sudah keluar dan
+  // struk sudah tercetak, jadi server tidak boleh menolak karena stok — stok
+  // dibiarkan minus dan dikoreksi admin lewat Koreksi Stok.
+  const isOffline = offline === true;
+  if (isOffline) {
+    if (typeof clientId !== 'string' || !clientId) {
+      return NextResponse.json({ error: 'clientId wajib untuk transaksi offline' }, { status: 400 });
+    }
+    if (pembayaran !== 'Cash' || body.jenis !== 'toko') {
+      return NextResponse.json({ error: 'Transaksi offline hanya Jual Toko tunai' }, { status: 400 });
+    }
+    // Idempoten: sinkronisasi yang diulang (mis. respons pertama hilang karena
+    // koneksi putus) mengembalikan dokumen yang sudah ada, bukan membuat ganda.
+    const existing = await TransaksiJual.findOne({ clientId }).lean();
+    if (existing) return NextResponse.json(existing, { status: 200 });
+  }
 
   // Retry loop for refNo collision
   let lastError: unknown = null;
@@ -132,7 +149,7 @@ export async function POST(req: NextRequest) {
           if (!barang) {
             throw new Error(`Barang dengan ID ${item.barangId} tidak ditemukan`);
           }
-          if (barang.stok < item.qty) {
+          if (!isOffline && barang.stok < item.qty) {
             throw new Error(
               `Stok ${barang.nama} tidak cukup (tersisa ${barang.stok}, dibutuhkan ${item.qty})`
             );
@@ -144,6 +161,7 @@ export async function POST(req: NextRequest) {
           ...rest, refNo, tanggal: tanggalDate, pembayaran,
           grandTotal: grandTotal || 0, piutang, items,
           pelangganId: pelangganId || '',
+          ...(isOffline ? { clientId, offline: true } : {}),
         }], { session });
 
         // Kurangi stok barang

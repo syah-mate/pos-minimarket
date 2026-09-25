@@ -15,8 +15,9 @@
     "deploy:prod": "bash ./deploy_prod.sh",
     "electron": "electron .",
     "electron:dev": "concurrently -k -n next,electron \"next dev --port 4072\" \"wait-on http://localhost:4072 && electron .\"",
-    "electron:build": "next build && node scripts/prepare-standalone.js && electron-builder",
-    "electron:pack": "next build && node scripts/prepare-standalone.js && electron-builder --dir"
+    "electron:build": "npm run rebuild:electron && next build && node scripts/prepare-standalone.js && electron-builder",
+    "electron:pack": "npm run rebuild:electron && next build && node scripts/prepare-standalone.js && electron-builder --dir",
+    "rebuild:electron": "node node_modules/@electron/rebuild/lib/cli.js -f -o better-sqlite3"
   },
   "build": {
     "appId": "com.lentera.posminimarket",
@@ -40,7 +41,8 @@
     "asarUnpack": [
       "**/node_modules/usb/**",
       "**/node_modules/@node-escpos/**",
-      "**/node_modules/@stoprocent/**"
+      "**/node_modules/@stoprocent/**",
+      "**/node_modules/better-sqlite3/**"
     ],
     "win": {
       "target": "nsis",
@@ -62,6 +64,7 @@
     "@node-escpos/usb-adapter": "^0.3.0",
     "@stoprocent/noble": "^2.8.0",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^11.10.0",
     "html2canvas": "^1.4.1",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
@@ -74,7 +77,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.7.0",
+    "@electron/rebuild": "^3.7.2",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",

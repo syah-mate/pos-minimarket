@@ -37,6 +37,13 @@ function LoginForm() {
         return;
       }
 
+      // Aplikasi desktop: simpan login (hash di SQLite lokal) supaya user ini
+      // tetap bisa masuk kasir offline saat server tidak terjangkau. Gagal
+      // menyimpan tidak boleh menghalangi login online.
+      if (window.electronAPI?.cacheLogin) {
+        await window.electronAPI.cacheLogin({ username, password, user: data.user }).catch(() => {});
+      }
+
       window.location.href = redirect;
     } catch {
       setError('Tidak dapat terhubung ke server');

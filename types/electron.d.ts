@@ -64,6 +64,11 @@ export interface ElectronAPI {
   scanBluetooth: () => Promise<{ id: string; name: string } | PrintError>;
   getPrinterConfig: () => Promise<PrinterConfig | PrintError>;
   listPrinters: () => Promise<Array<{ vendorId: number; productId: number }> | { error: string }>;
+  cacheLogin?: (data: {
+    username: string;
+    password: string;
+    user: { name: string; role: string };
+  }) => Promise<{ ok: boolean }>;
 }
 
 declare global {
