@@ -1,24 +1,12 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const { startNextServer, loadAppEnv } = require("./server");
 const printer = require("./printer");
 
-// Kasir offline memakai better-sqlite3 (modul native). Kalau gagal dimuat
-// (mis. build lupa di-rebuild untuk Electron), aplikasi online tetap jalan.
-let offline = null;
-try {
-  offline = { ipc: require("./offline/ipc"), sync: require("./offline/sync") };
-} catch (e) {
-  console.error("[Offline] nonaktif:", e && e.message);
-}
-
 const isDev = !app.isPackaged;
-const OFFLINE_PAGE = path.join(__dirname, "offline", "kasir.html");
 
 let mainWindow = null;
 let stopServer = null;
-let appUrl = null;
-let offlineStarted = false;
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -66,12 +54,8 @@ async function createWindow() {
     return { action: "deny" };
   });
 
-  appUrl = url;
-
   mainWindow.webContents.on("did-fail-load", (_event, code, desc, failedUrl, isMainFrame) => {
     if (!isMainFrame || code === -3) return; // -3 = ERR_ABORTED (navigasi dibatalkan)
-    if (failedUrl.startsWith("file:")) return;
-    if (offline) return openOfflineKasir({ force: true });
     const html = `<body style="font-family:sans-serif;padding:40px;text-align:center">
       <h2>Tidak dapat terhubung ke server</h2>
       <p>Periksa koneksi internet, lalu coba lagi.</p>
@@ -81,45 +65,6 @@ async function createWindow() {
     mainWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
   });
 
-  // Server hidup tapi backend-nya tumbang (502/503/504 dari reverse proxy)
-  // diperlakukan sama dengan tidak terjangkau.
-  mainWindow.webContents.on("did-navigate", (_event, navUrl, httpCode) => {
-    if (offline && isAppUrl(navUrl) && httpCode >= 502 && httpCode <= 504) openOfflineKasir();
-  });
-
-  // Ctrl+Shift+O: pindah ke kasir offline kapan saja (mis. internet putus di
-  // tengah transaksi dan halaman online sudah terbuka).
-  mainWindow.webContents.on("before-input-event", (event, input) => {
-    if (offline && input.type === "keyDown" && input.control && input.shift && input.key.toLowerCase() === "o") {
-      event.preventDefault();
-      openOfflineKasir();
-    }
-  });
-
-  if (offline && !offlineStarted) {
-    offlineStarted = true;
-    offline.ipc.register({ goOnline: () => mainWindow && mainWindow.loadURL(appUrl).catch(() => {}) });
-    let wasOnline = null;
-    offline.sync.onStatus((s) => {
-      if (!mainWindow) return;
-      mainWindow.webContents.send("offline:status", s);
-      // Koneksi baru saja putus saat halaman online terbuka → tawarkan pindah.
-      if (wasOnline === true && !s.online && isAppUrl(mainWindow.webContents.getURL())) {
-        dialog
-          .showMessageBox(mainWindow, {
-            type: "warning",
-            buttons: ["Buka kasir offline", "Tetap di sini"],
-            defaultId: 0,
-            message: "Koneksi ke server terputus",
-            detail: "Transaksi bisa dilanjutkan di kasir offline dan akan disinkronkan otomatis saat internet kembali.",
-          })
-          .then(({ response }) => response === 0 && openOfflineKasir());
-      }
-      wasOnline = s.online;
-    });
-    offline.sync.start(url);
-  }
-
   await mainWindow.loadURL(url).catch(() => {});
   mainWindow.show();
 
@@ -128,15 +73,6 @@ async function createWindow() {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
-}
-
-// force: dipakai saat load halaman online gagal — URL jendela saat itu belum
-// tentu URL halaman offline, jadi jangan disimpulkan dari getURL().
-function openOfflineKasir({ force = false } = {}) {
-  if (!mainWindow) return;
-  // Sudah di kasir offline: jangan reload, keranjang yang sedang diisi bisa hilang.
-  if (!force && mainWindow.webContents.getURL().startsWith("file:")) return;
-  mainWindow.loadFile(OFFLINE_PAGE).catch(() => {});
 }
 
 app.whenReady().then(() => {
@@ -153,7 +89,6 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", () => {
-  if (offline) offline.sync.stop();
   if (stopServer) stopServer();
 });
 

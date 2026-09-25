@@ -42,11 +42,6 @@ export interface ITransaksiJual extends Document {
   piutangLunasOperator: string;
   operator: string;
   cetakNota: boolean;
-  /** ID buatan kasir offline (Electron) — kunci idempotensi saat sinkronisasi. */
-  clientId?: string;
-  /** true = dibuat saat offline; stok boleh minus saat disinkronkan. */
-  offline: boolean;
-  terminalId: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -95,9 +90,6 @@ const TransaksiJualSchema = new Schema<ITransaksiJual>(
     piutangLunasOperator: { type: String, default: '' },
     operator:          { type: String, default: '' },
     cetakNota:      { type: Boolean, default: false },
-    clientId:       { type: String },
-    offline:        { type: Boolean, default: false },
-    terminalId:     { type: String, default: '' },
   },
   { timestamps: true }
 );
@@ -108,8 +100,6 @@ TransaksiJualSchema.index({ pelangganId: 1, tanggal: -1 });
 TransaksiJualSchema.index({ jenis: 1, tanggal: -1 });
 TransaksiJualSchema.index({ pembayaran: 1, piutang: 1 });
 TransaksiJualSchema.index({ 'items.barangId': 1 });
-// Sparse: transaksi online tidak punya clientId, jadi tidak ikut dicek unik.
-TransaksiJualSchema.index({ clientId: 1 }, { unique: true, sparse: true });
 
 const TransaksiJual: Model<ITransaksiJual> =
   mongoose.models.TransaksiJual ??
