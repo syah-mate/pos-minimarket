@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const { startNextServer, loadAppEnv } = require("./server");
 const printer = require("./printer");
@@ -22,14 +22,50 @@ async function createWindow() {
   });
 
   // Dibaca di sini, bukan saat module load, karena loadAppEnv() jalan lebih dulu.
+  // POS_APP_URL diisi = mode thin client: jendela memuat web server pusat, jadi
+  // koneksi MongoDB (dan kredensialnya) hanya ada di server, bukan di tiap PC kasir.
+  // Kosong = jalankan Next server lokal seperti sebelumnya.
+  const remoteUrl = (process.env.POS_APP_URL || "").trim().replace(/\/+$/, "");
   const PORT = Number(process.env.ELECTRON_APP_PORT || 4072);
-  const url = `http://localhost:${PORT}`;
+  const url = remoteUrl || `http://localhost:${PORT}`;
 
-  if (!isDev) {
+  if (!isDev && !remoteUrl) {
     stopServer = await startNextServer(PORT);
   }
 
-  await mainWindow.loadURL(url);
+  // preload membuka akses printer ke halaman, jadi jendela ini hanya boleh
+  // berada di origin aplikasi; link lain dibuka di browser biasa.
+  const appOrigin = new URL(url).origin;
+  const isAppUrl = (target) => {
+    try {
+      return new URL(target).origin === appOrigin;
+    } catch {
+      return false;
+    }
+  };
+  mainWindow.webContents.on("will-navigate", (event, target) => {
+    if (!isAppUrl(target)) {
+      event.preventDefault();
+      shell.openExternal(target);
+    }
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (!isAppUrl(target)) shell.openExternal(target);
+    return { action: "deny" };
+  });
+
+  mainWindow.webContents.on("did-fail-load", (_event, code, desc, failedUrl, isMainFrame) => {
+    if (!isMainFrame || code === -3) return; // -3 = ERR_ABORTED (navigasi dibatalkan)
+    const html = `<body style="font-family:sans-serif;padding:40px;text-align:center">
+      <h2>Tidak dapat terhubung ke server</h2>
+      <p>Periksa koneksi internet, lalu coba lagi.</p>
+      <p style="color:#888;font-size:12px">${desc} (${code})</p>
+      <button onclick="location.href='${failedUrl}'" style="padding:8px 20px">Coba lagi</button>
+    </body>`;
+    mainWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
+  });
+
+  await mainWindow.loadURL(url).catch(() => {});
   mainWindow.show();
 
   if (isDev) mainWindow.webContents.openDevTools({ mode: "detach" });
